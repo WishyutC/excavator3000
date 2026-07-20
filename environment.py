@@ -1,5 +1,5 @@
 from robot_controller import RobotController
-import math
+from config import CONFIG
 
 
 class RCEnvironment:
@@ -8,7 +8,7 @@ class RCEnvironment:
 
         self.robot = RobotController()
 
-        self.max_steps = 500
+        self.max_steps = CONFIG["environment"]["max_steps"]
         self.step_count = 0
 
         self.previous_state = None
@@ -75,7 +75,7 @@ class RCEnvironment:
         # Collision
         # ------------------------
 
-        if max(state) > 3900:
+        if max(state) > CONFIG["environment"]["collision_threshold"]:
             return -100.0
 
         # ------------------------
@@ -121,6 +121,25 @@ class RCEnvironment:
     def close(self):
 
         self.robot.close()
+
+    def update_hud(
+        self,
+        episode,
+        step,
+        action,
+        reward,
+        total_reward,
+        state
+    ):
+
+        self.robot.update_hud(
+            episode,
+            step,
+            action,
+            reward,
+            total_reward,
+            state
+        )
 
     # ----------------------------------------------------
     # Action Space

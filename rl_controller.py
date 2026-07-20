@@ -1,4 +1,5 @@
 from environment import RCEnvironment
+from config import CONFIG
 
 
 def main():
@@ -12,16 +13,17 @@ def main():
 
             state = env.reset()
 
-            total_reward = 0.0
+            total_reward = -1
             done = False
             step = 0
 
-            print(f"\n===== EPISODE {episode} =====")
+            if CONFIG["program"]["terminal_output"]:
+                print(f"\n===== EPISODE {episode} =====")
 
             while not done:
 
-                # Drive forward continuously to verify the Webots setup.
-                action = 0
+                # Fixed action used while verifying the Webots setup.
+                action = CONFIG["program"]["test_action"]
 
                 next_state, reward, done, info = env.step(action)
 
@@ -32,29 +34,40 @@ def main():
                 total_reward += reward
                 step += 1
 
-                print(
-                    f"Episode: {episode} | "
-                    f"Step: {step} | "
-                    f"Action: {action} | "
-                    f"Reward: {reward:.3f} | "
-                    f"Total Reward: {total_reward:.3f}"
+                env.update_hud(
+                    episode,
+                    step,
+                    action,
+                    reward,
+                    total_reward,
+                    next_state
                 )
 
-                print(
-                    "Sensors:",
-                    [
-                        round(value, 1)
-                        for value in next_state
-                    ]
-                )
+                if CONFIG["program"]["terminal_output"]:
+                    print(
+                        f"Episode: {episode} | "
+                        f"Step: {step} | "
+                        f"Action: {action} | "
+                        f"Reward: {reward:.3f} | "
+                        f"Total Reward: {total_reward:.3f}"
+                    )
+
+                    print(
+                        "Sensors:",
+                        [
+                            round(value, 1)
+                            for value in next_state
+                        ]
+                    )
 
                 state = next_state
 
-            print(
-                f"Episode {episode} finished | "
-                f"Steps: {step} | "
-                f"Total Reward: {total_reward:.3f}"
-            )
+            if CONFIG["program"]["terminal_output"]:
+                print(
+                    f"Episode {episode} finished | "
+                    f"Steps: {step} | "
+                    f"Total Reward: {total_reward:.3f}"
+                )
 
     except KeyboardInterrupt:
         print("\nEnvironment test stopped by user.")
