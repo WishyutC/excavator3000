@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import math
 import queue
 import socket
 import threading
@@ -157,6 +158,90 @@ class AgentHUD:
             font=("Consolas", 9)
         )
 
+    def draw_speedometer(self, center_x, center_y, radius):
+        speed = max(0.0, float(self.latest.get("linear_speed_m_s", 0.0)))
+        max_speed = max(
+            0.01,
+            float(self.latest.get("max_linear_speed_m_s", speed))
+        )
+        ratio = min(1.0, speed / max_speed)
+
+        bounds = (
+            center_x - radius,
+            center_y - radius,
+            center_x + radius,
+            center_y + radius
+        )
+        self.canvas.create_arc(
+            *bounds,
+            start=0,
+            extent=180,
+            style="arc",
+            outline="#26384a",
+            width=13
+        )
+        self.canvas.create_arc(
+            *bounds,
+            start=180 - ratio * 180,
+            extent=ratio * 180,
+            style="arc",
+            outline=CYAN,
+            width=13
+        )
+
+        for tick in range(6):
+            tick_ratio = tick / 5
+            angle = math.pi - tick_ratio * math.pi
+            inner = radius - 17
+            outer = radius - 5
+            x1 = center_x + math.cos(angle) * inner
+            y1 = center_y - math.sin(angle) * inner
+            x2 = center_x + math.cos(angle) * outer
+            y2 = center_y - math.sin(angle) * outer
+            self.canvas.create_line(x1, y1, x2, y2, fill=MUTED, width=2)
+
+        needle_angle = math.pi - ratio * math.pi
+        needle_x = center_x + math.cos(needle_angle) * (radius - 25)
+        needle_y = center_y - math.sin(needle_angle) * (radius - 25)
+        self.canvas.create_line(
+            center_x,
+            center_y,
+            needle_x,
+            needle_y,
+            fill="#ff5964",
+            width=4
+        )
+        self.canvas.create_oval(
+            center_x - 7,
+            center_y - 7,
+            center_x + 7,
+            center_y + 7,
+            fill="#ff5964",
+            outline=""
+        )
+
+        self.canvas.create_text(
+            center_x,
+            center_y - 45,
+            text=f"{speed * 100:.1f}",
+            fill=TEXT,
+            font=("Consolas", 25, "bold")
+        )
+        self.canvas.create_text(
+            center_x,
+            center_y - 18,
+            text="cm/s",
+            fill=MUTED,
+            font=("Segoe UI", 10, "bold")
+        )
+        self.canvas.create_text(
+            center_x,
+            center_y + 22,
+            text=f"MAX {max_speed * 100:.1f} cm/s",
+            fill=MUTED,
+            font=("Consolas", 9)
+        )
+
     def draw(self):
         self.canvas.delete("all")
         self.canvas.create_text(
@@ -211,25 +296,30 @@ class AgentHUD:
 
         self.canvas.create_rectangle(
             720,
-            82,
+            70,
             1085,
-            565,
+            585,
             fill=PANEL,
             outline="#233244",
             width=2
         )
         self.canvas.create_text(
             748,
-            110,
+            92,
             anchor="w",
             text="AGENT STATE",
             fill=MUTED,
             font=("Segoe UI", 11, "bold")
         )
 
+        self.draw_speedometer(902, 235, 115)
+
         details = [
-            ("EPISODE", str(self.latest["episode"]), TEXT),
-            ("STEP", str(self.latest["step"]), TEXT),
+            (
+                "EPISODE / STEP",
+                f'{self.latest["episode"]} / {self.latest["step"]}',
+                TEXT
+            ),
             (
                 "DECISION",
                 f'{self.latest["action_name"]}  [{self.latest["action"]}]',
@@ -243,12 +333,20 @@ class AgentHUD:
                 ),
                 TEXT
             ),
+            (
+                "TARGET / TURN RATE",
+                (
+                    f'{self.latest.get("target_linear_speed_m_s", 0.0) * 100:+.1f} cm/s   '
+                    f'{self.latest.get("angular_speed_rad_s", 0.0):+.2f} rad/s'
+                ),
+                TEXT
+            ),
             ("REWARD", f'{self.latest["reward"]:+.3f}', "#ffd166"),
             ("TOTAL REWARD", f'{self.latest["total_reward"]:+.3f}', "#ffd166")
         ]
 
         for index, (label, value, color) in enumerate(details):
-            y = 155 + index * 65
+            y = 356 + index * 38
             self.canvas.create_text(
                 748,
                 y,
@@ -259,11 +357,11 @@ class AgentHUD:
             )
             self.canvas.create_text(
                 748,
-                y + 25,
+                y + 19,
                 anchor="w",
                 text=value,
                 fill=color,
-                font=("Consolas", 15, "bold")
+                font=("Consolas", 12, "bold")
             )
 
         limits = OBSERVER_CONFIG["proximity_m"]

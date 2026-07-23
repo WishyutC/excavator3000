@@ -9,7 +9,6 @@ import subprocess
 import sys
 
 TIME_STEP = CONFIG["simulation"]["time_step_ms"]
-MAX_SPEED = CONFIG["simulation"]["max_motor_speed"]
 COLLISION_THRESHOLD = CONFIG["environment"]["collision_threshold"]
 OBSERVER_CONFIG = CONFIG["observer"]
 
@@ -32,9 +31,9 @@ class RobotController:
                 "Could not access robot translation or rotation fields."
             )
 
-        # Save original height
+        # Webots' default ENU coordinates use Z as the vertical axis.
         self.start_position = self.translation.getSFVec3f()
-        self.robot_height = self.start_position[1]
+        self.robot_height = self.start_position[2]
 
         # Motors
         self.left_motor = self.robot.getDevice("left wheel motor")
@@ -76,15 +75,37 @@ class RobotController:
 
             self.sensors.append(sensor)
 
-        # Discrete actions
+        device_max_speed = min(
+            self.left_motor.getMaxVelocity(),
+            self.right_motor.getMaxVelocity()
+        )
+        configured_max_speed = CONFIG["simulation"]["max_motor_speed"]
+        speed_scale = CONFIG["robot"]["drive"]["speed_scale"]
+
+        if not 0.0 < speed_scale <= 1.0:
+            raise ValueError("robot.drive.speed_scale must be between 0 and 1.")
+
+        self.motor_max_speed = min(device_max_speed, configured_max_speed)
+        self.drive_speed = self.motor_max_speed * speed_scale
+
+        action_ratios = CONFIG["robot"]["drive"]["action_ratios"]
+
+        def wheel_speeds(action_name):
+            left_ratio, right_ratio = action_ratios[action_name]
+            return (
+                left_ratio * self.drive_speed,
+                right_ratio * self.drive_speed
+            )
+
+        # Discrete actions expressed as ratios of the safe drive speed.
         self.action_table = {
-            0: (4.5, 4.5),       # Forward
-            1: (2.0, 5.0),       # Turn left
-            2: (5.0, 2.0),       # Turn right
-            3: (-4.0, -4.0),     # Reverse
-            4: (0.0, 0.0),       # Stop
-            5: (-2.0, -4.0),     # Reverse left
-            6: (-4.0, -2.0)      # Reverse right
+            0: wheel_speeds("forward"),
+            1: wheel_speeds("turn_left"),
+            2: wheel_speeds("turn_right"),
+            3: wheel_speeds("reverse"),
+            4: wheel_speeds("stop"),
+            5: wheel_speeds("reverse_left"),
+            6: wheel_speeds("reverse_right")
         }
 
         self.action_names = {
@@ -107,7 +128,14 @@ class RobotController:
             if OBSERVER_CONFIG["auto_launch"]:
                 self._start_hud()
 
-        print("Robot Controller Ready")
+        estimated_speed = (
+            self.drive_speed * CONFIG["robot"]["wheel_radius_m"]
+        )
+        print(
+            "Robot Controller Ready | "
+            f"drive {self.drive_speed:.2f} rad/s | "
+            f"estimated {estimated_speed:.3f} m/s"
+        )
 
     def step(self):
         return self.robot.step(TIME_STEP)
@@ -129,8 +157,8 @@ class RobotController:
 
         left, right = self.action_table[action]
 
-        left = max(-MAX_SPEED, min(MAX_SPEED, left))
-        right = max(-MAX_SPEED, min(MAX_SPEED, right))
+        left = max(-self.motor_max_speed, min(self.motor_max_speed, left))
+        right = max(-self.motor_max_speed, min(self.motor_max_speed, right))
 
         self.left_motor.setVelocity(left)
         self.right_motor.setVelocity(right)
@@ -226,6 +254,10 @@ class RobotController:
             return
 
         left_speed, right_speed = self.action_table[action]
+        node_velocity = self.node.getVelocity()
+        linear_speed = math.hypot(node_velocity[0], node_velocity[1])
+        angular_speed = node_velocity[5]
+        wheel_radius = CONFIG["robot"]["wheel_radius_m"]
 
         packet = {
             "type": "telemetry",
@@ -235,6 +267,12 @@ class RobotController:
             "action_name": self.get_action_name(action),
             "left_speed": left_speed,
             "right_speed": right_speed,
+            "linear_speed_m_s": linear_speed,
+            "angular_speed_rad_s": angular_speed,
+            "max_linear_speed_m_s": self.motor_max_speed * wheel_radius,
+            "target_linear_speed_m_s": (
+                (left_speed + right_speed) * 0.5 * wheel_radius
+            ),
             "reward": reward,
             "total_reward": total_reward,
             "sensors": [
@@ -268,30 +306,56 @@ class RobotController:
 
         self.stop()
 
+        if CONFIG["environment"]["random_heading"]:
+            angle = random.uniform(-math.pi, math.pi)
+        else:
+            angle = 0.0
+
         if CONFIG["environment"]["random_start"]:
-            start_range = CONFIG["environment"]["random_start_range_m"]
-            x = random.uniform(-start_range, start_range)
-            z = random.uniform(-start_range, start_range)
+            robot = CONFIG["robot"]
+            environment = CONFIG["environment"]
+            arena = environment["arena_size_m"]
+            clearance = environment["respawn_wall_clearance_m"]
+
+            half_length = robot["length_m"] / 2.0
+            half_width = robot["width_m"] / 2.0
+
+            # Axis-aligned extents of the rotated rectangular footprint.
+            extent_x = (
+                abs(math.cos(angle)) * half_length
+                + abs(math.sin(angle)) * half_width
+            )
+            extent_y = (
+                abs(math.sin(angle)) * half_length
+                + abs(math.cos(angle)) * half_width
+            )
+
+            x_limit = arena["x"] / 2.0 - extent_x - clearance
+            y_limit = arena["y"] / 2.0 - extent_y - clearance
+
+            if x_limit <= 0.0 or y_limit <= 0.0:
+                raise ValueError(
+                    "Arena is too small for the configured robot dimensions "
+                    "and respawn clearance."
+                )
+
+            x = random.uniform(-x_limit, x_limit)
+            y = random.uniform(-y_limit, y_limit)
         else:
             x = self.start_position[0]
-            z = self.start_position[2]
+            y = self.start_position[1]
 
         self.translation.setSFVec3f([
             x,
-            self.robot_height,
-            z
+            y,
+            self.robot_height
         ])
 
-        # Random heading
-        angle = random.uniform(
-            -math.pi,
-            math.pi
-        )
-
+        # Heading rotates around the vertical Z axis in the ENU world.
         self.rotation.setSFRotation([
             0,
-            1,
             0,
+            1,
             angle
         ])
 

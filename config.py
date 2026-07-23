@@ -11,14 +11,40 @@ CONFIG = {
 
     "simulation": {
         "time_step_ms": 32,
-        "max_motor_speed": 12.56
+        # Requested ceiling; the real Webots motor limit still takes priority.
+        "max_motor_speed": 12.9
+    },
+
+    "robot": {
+        "width_m": 0.145,
+        "length_m": 0.255,
+        "wheel_radius_m": 0.0205,
+        "drive": {
+            # 0.95 means use 95% of the motor's actual maximum velocity.
+            "speed_scale": 0.95,
+            "action_ratios": {
+                "forward": [1.0, 1.0],
+                "turn_left": [0.45, 1.0],
+                "turn_right": [1.0, 0.45],
+                "reverse": [-0.80, -0.80],
+                "stop": [0.0, 0.0],
+                "reverse_left": [-0.40, -0.80],
+                "reverse_right": [-0.80, -0.40]
+            }
+        }
     },
 
     "environment": {
         "max_steps": 500,
         "collision_threshold": 3900,
         "random_start": True,
-        "random_start_range_m": 0.4
+        "random_heading": True,
+        # car_env_test_v2.wbt uses RectangleArena floorSize 2 2.
+        "arena_size_m": {
+            "x": 2.0,
+            "y": 2.0
+        },
+        "respawn_wall_clearance_m": 0.05
     },
 
     "observer": {
