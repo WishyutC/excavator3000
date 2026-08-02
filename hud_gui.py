@@ -298,7 +298,7 @@ class AgentHUD:
             720,
             70,
             1085,
-            585,
+            630,
             fill=PANEL,
             outline="#233244",
             width=2
@@ -314,11 +314,25 @@ class AgentHUD:
 
         self.draw_speedometer(902, 235, 115)
 
+        termination_reason = self.latest.get(
+            "termination_reason",
+            "running"
+        )
+        status_color = {
+            "goal_reached": "#35df76",
+            "collision": "#ff3b3b",
+            "timeout": "#ffd166",
+            "simulation_stopped": MUTED
+        }.get(termination_reason, TEXT)
+
         details = [
             (
-                "EPISODE / STEP",
-                f'{self.latest["episode"]} / {self.latest["step"]}',
-                TEXT
+                "EPISODE / STEP / STATUS",
+                (
+                    f'{self.latest["episode"]} / {self.latest["step"]}  '
+                    f'{termination_reason.upper()}'
+                ),
+                status_color
             ),
             (
                 "DECISION",
@@ -364,6 +378,31 @@ class AgentHUD:
                 font=("Consolas", 12, "bold")
             )
 
+        reward_parts = self.latest.get("reward_breakdown", {})
+        self.canvas.create_text(
+            748,
+            590,
+            anchor="w",
+            text=(
+                f'MOTION {reward_parts.get("safe_motion", 0.0):+.3f}   '
+                f'DANGER {reward_parts.get("danger", 0.0):+.3f}   '
+                f'TIME {reward_parts.get("time", 0.0):+.3f}'
+            ),
+            fill=TEXT,
+            font=("Consolas", 9, "bold")
+        )
+        self.canvas.create_text(
+            748,
+            610,
+            anchor="w",
+            text=(
+                f'STUCK {reward_parts.get("stuck", 0.0):+.3f}   '
+                f'TERMINAL {reward_parts.get("terminal", 0.0):+.1f}'
+            ),
+            fill=MUTED,
+            font=("Consolas", 9, "bold")
+        )
+
         limits = OBSERVER_CONFIG["proximity_m"]
         legend = (
             f'RED <{limits["danger"] * 100:.0f} cm   '
@@ -372,7 +411,7 @@ class AgentHUD:
         )
         self.canvas.create_text(
             720,
-            610,
+            650,
             anchor="w",
             text=legend,
             fill=MUTED,
@@ -380,7 +419,7 @@ class AgentHUD:
         )
         self.canvas.create_text(
             720,
-            640,
+            678,
             anchor="w",
             text="LIVE  UDP 127.0.0.1",
             fill="#35df76",

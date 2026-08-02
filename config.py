@@ -34,17 +34,50 @@ CONFIG = {
         }
     },
 
+    "observation": {
+        # DQN input: 8 obstacle proximities + forward speed + turn rate.
+        "sensor_count": 8,
+        # Matches the lookup-table range in car_env_test_v2.wbt.
+        "sensor_max_distance_m": 0.5,
+        # Physical normalization limits; values outside them are clipped.
+        "max_forward_speed_m_s": 0.129,
+        "max_turn_rate_rad_s": 2.0
+    },
+
     "environment": {
         "max_steps": 500,
         "collision_threshold": 3900,
-        "random_start": True,
-        "random_heading": True,
-        # car_env_test_v2.wbt uses RectangleArena floorSize 2 2.
+        # Keep the mapped start position until track-safe spawn zones are added.
+        "random_start": False,
+        "random_heading": False,
+        # car_env_test_v2.wbt uses RectangleArena floorSize 10 10.
         "arena_size_m": {
-            "x": 2.0,
-            "y": 2.0
+            "x": 10.0,
+            "y": 10.0
         },
-        "respawn_wall_clearance_m": 0.05
+        "respawn_wall_clearance_m": 0.05,
+        "goal": {
+            "enabled": True,
+            "def": "GOAL",
+            # Matches the thin green finish line in car_env_test_v2.wbt.
+            "size_m": {
+                "x": 1.7,
+                "y": 0.1
+            },
+            "tolerance_m": 0.03
+        },
+        "reward": {
+            "collision": -100.0,
+            "timeout": -50.0,
+            "goal_base": 100.0,
+            "goal_time_bonus": 50.0,
+            "safe_motion_scale": 0.03,
+            "danger_penalty_scale": 0.20,
+            "time_penalty_start": 0.005,
+            "time_penalty_growth": 0.020,
+            "stuck_speed_threshold": 0.05,
+            "stuck_penalty": 0.020
+        }
     },
 
     "observer": {
@@ -71,11 +104,17 @@ CONFIG = {
     },
 
     "training": {
-        # Reserved for the future PPO implementation.
+        # DQN training remains disabled while its network/trainer are developed.
         "enabled": False,
-        "algorithm": "ppo",
+        "algorithm": "dqn",
         "device": "auto",
         "seed": 42,
-        "save_directory": "models"
+        "save_directory": "models",
+        "replay_buffer": {
+            "type": "uniform",
+            "capacity": 50_000,
+            "batch_size": 64,
+            "learning_starts": 2_000
+        }
     }
 }

@@ -13,9 +13,13 @@ def main():
 
             state = env.reset()
 
-            total_reward = -1
+            total_reward = 0.0
             done = False
             step = 0
+            info = {
+                "termination_reason": "running",
+                "is_success": False
+            }
 
             if CONFIG["program"]["terminal_output"]:
                 print(f"\n===== EPISODE {episode} =====")
@@ -40,7 +44,8 @@ def main():
                     action,
                     reward,
                     total_reward,
-                    next_state
+                    next_state,
+                    info
                 )
 
                 if CONFIG["program"]["terminal_output"]:
@@ -53,9 +58,9 @@ def main():
                     )
 
                     print(
-                        "Sensors:",
+                        "Observation:",
                         [
-                            round(value, 1)
+                            round(value, 3)
                             for value in next_state
                         ]
                     )
@@ -66,7 +71,8 @@ def main():
                 print(
                     f"Episode {episode} finished | "
                     f"Steps: {step} | "
-                    f"Total Reward: {total_reward:.3f}"
+                    f"Total Reward: {total_reward:.3f} | "
+                    f"Reason: {info['termination_reason']}"
                 )
 
     except KeyboardInterrupt:

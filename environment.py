@@ -1,5 +1,7 @@
 from robot_controller import RobotController
 from config import CONFIG
+from episode_manager import EpisodeManager
+from reward_calculator import RewardCalculator
 
 
 class RCEnvironment:
@@ -7,11 +9,13 @@ class RCEnvironment:
     def __init__(self):
 
         self.robot = RobotController()
+        self.episode_manager = EpisodeManager(self.robot)
+        self.reward_calculator = RewardCalculator()
 
-        self.max_steps = CONFIG["environment"]["max_steps"]
         self.step_count = 0
 
         self.previous_state = None
+        self.raw_sensor_values = None
 
     # ----------------------------------------------------
     # Reset Environment
@@ -23,7 +27,8 @@ class RCEnvironment:
 
         self.step_count = 0
 
-        state = self.robot.get_state()
+        self.raw_sensor_values = self.robot.get_raw_sensor_values()
+        state = self.robot.get_observation(self.raw_sensor_values)
 
         self.previous_state = state
 
@@ -38,81 +43,30 @@ class RCEnvironment:
         self.robot.apply_action(action)
 
         if self.robot.step() == -1:
-            return None, 0, True, {}
+            status = self.episode_manager.simulation_stopped_status()
+            return None, 0.0, True, status.to_info()
 
-        state = self.robot.get_state()
+        self.raw_sensor_values = self.robot.get_raw_sensor_values()
+        state = self.robot.get_observation(self.raw_sensor_values)
+        self.step_count += 1
 
-        reward = self.compute_reward(state)
-
-        done = self.is_done(state)
+        status = self.episode_manager.evaluate(
+            self.raw_sensor_values,
+            self.step_count
+        )
+        reward_result = self.reward_calculator.calculate(
+            state,
+            status.reason,
+            self.step_count
+        )
+        reward = reward_result.total
 
         self.previous_state = state
 
-        self.step_count += 1
+        info = status.to_info()
+        info["reward_breakdown"] = reward_result.to_info()
 
-        info = {}
-
-        return state, reward, done, info
-
-    # ----------------------------------------------------
-    # Reward Function
-    # ----------------------------------------------------
-
-    def compute_reward(self, state):
-
-        reward = 0.0
-
-        front = state[0]
-        back = state[1]
-        left = state[2]
-        right = state[3]
-        lf = state[4]
-        rf = state[5]
-        lb = state[6]
-        rb = state[7]
-
-        # ------------------------
-        # Collision
-        # ------------------------
-
-        if max(state) > CONFIG["environment"]["collision_threshold"]:
-            return -100.0
-
-        # ------------------------
-        # Encourage forward motion
-        # ------------------------
-
-        reward += 0.5
-
-        # ------------------------
-        # Penalty near obstacles
-        # ------------------------
-
-        reward -= front / 8000.0
-        reward -= lf / 12000.0
-        reward -= rf / 12000.0
-
-        # ------------------------
-        # Small living reward
-        # ------------------------
-
-        reward += 0.05
-
-        return reward
-
-    # ----------------------------------------------------
-    # Episode Finished?
-    # ----------------------------------------------------
-
-    def is_done(self, state):
-
-        if self.robot.collision():
-            return True
-
-        if self.step_count >= self.max_steps:
-            return True
-
-        return False
+        return state, reward, status.done, info
 
     # ----------------------------------------------------
     # Close Environment
@@ -129,7 +83,8 @@ class RCEnvironment:
         action,
         reward,
         total_reward,
-        state
+        state,
+        info
     ):
 
         self.robot.update_hud(
@@ -138,7 +93,9 @@ class RCEnvironment:
             action,
             reward,
             total_reward,
-            state
+            self.raw_sensor_values,
+            state,
+            info
         )
 
     # ----------------------------------------------------
@@ -157,4 +114,4 @@ class RCEnvironment:
     @property
     def state_size(self):
 
-        return 8
+        return CONFIG["observation"]["sensor_count"] + 2

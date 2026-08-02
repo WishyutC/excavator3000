@@ -7,6 +7,7 @@ from pathlib import Path
 import socket
 import subprocess
 import sys
+from observation import build_observation
 
 TIME_STEP = CONFIG["simulation"]["time_step_ms"]
 COLLISION_THRESHOLD = CONFIG["environment"]["collision_threshold"]
@@ -140,12 +141,34 @@ class RobotController:
     def step(self):
         return self.robot.step(TIME_STEP)
 
-    def get_state(self):
+    def get_raw_sensor_values(self):
 
         return [
             sensor.getValue()
             for sensor in self.sensors
         ]
+
+    def get_observation(self, raw_sensor_values=None):
+
+        if raw_sensor_values is None:
+            raw_sensor_values = self.get_raw_sensor_values()
+
+        sensor_distances = [
+            self.sensor_distance(index, value)
+            for index, value in enumerate(raw_sensor_values)
+        ]
+
+        return build_observation(
+            sensor_distances,
+            self.node.getVelocity(),
+            self.node.getOrientation(),
+            CONFIG["observation"]
+        )
+
+    def get_state(self):
+        """Return the normalized state consumed by the learning agent."""
+
+        return self.get_observation()
 
     def apply_action(self, action):
 
@@ -241,7 +264,9 @@ class RobotController:
         action,
         reward,
         total_reward,
-        state
+        raw_sensor_values,
+        observation,
+        info
     ):
 
         if not OBSERVER_CONFIG["enabled"] or self.hud_socket is None:
@@ -275,12 +300,19 @@ class RobotController:
             ),
             "reward": reward,
             "total_reward": total_reward,
+            "observation": observation,
+            "normalized_forward_speed": observation[-2],
+            "normalized_turn_rate": observation[-1],
+            "termination_reason": info["termination_reason"],
+            "is_success": info["is_success"],
+            "goal_distance_m": info["goal_distance_m"],
+            "reward_breakdown": info.get("reward_breakdown", {}),
             "sensors": [
                 {
                     "raw": value,
                     "distance_m": self.sensor_distance(index, value)
                 }
-                for index, value in enumerate(state)
+                for index, value in enumerate(raw_sensor_values)
             ]
         }
 
@@ -300,7 +332,7 @@ class RobotController:
 
     def collision(self):
 
-        return max(self.get_state()) > COLLISION_THRESHOLD
+        return max(self.get_raw_sensor_values()) > COLLISION_THRESHOLD
 
     def reset(self):
 
