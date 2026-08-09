@@ -6,4 +6,6 @@ venv/
 *.onnx
 *.pt
 *.pth
-
+runs/
+models/
+tmp/

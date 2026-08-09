@@ -3,7 +3,7 @@
 
 CONFIG = {
     "program": {
-        # Current modes: "test". Future modes: "train" and "evaluate".
+        # Modes: "test", "train", or "evaluate".
         "mode": "test",
         "terminal_output": True,
         "test_action": 0
@@ -83,6 +83,7 @@ CONFIG = {
     "observer": {
         # Disable this during high-speed training to remove GUI overhead.
         "enabled": True,
+        "enabled_in_training": False,
         "auto_launch": True,
         "host": "127.0.0.1",
         "port": 8765,
@@ -97,24 +98,42 @@ CONFIG = {
     },
 
     "logging": {
-        # File logging will be added with the full observer dashboard.
-        "enabled": False,
+        "enabled": True,
         "format": "csv",
         "directory": "runs"
     },
 
     "training": {
-        # DQN training remains disabled while its network/trainer are developed.
-        "enabled": False,
         "algorithm": "dqn",
         "device": "auto",
         "seed": 42,
+        "episodes": 1_000,
+        "gamma": 0.99,
+        "learning_rate": 0.001,
+        "hidden_sizes": [64, 64],
+        "epsilon": {
+            "start": 1.0,
+            "end": 0.05,
+            "decay_steps": 50_000
+        },
+        "train_every_steps": 1,
+        "gradient_clip_norm": 10.0,
+        "target_update_steps": 1_000,
         "save_directory": "models",
+        "checkpoint_name": "dqn_latest.pt",
+        "best_checkpoint_name": "dqn_best.pt",
+        "save_every_episodes": 50,
+        "resume": False,
         "replay_buffer": {
             "type": "uniform",
             "capacity": 50_000,
             "batch_size": 64,
             "learning_starts": 2_000
         }
+    },
+
+    "evaluation": {
+        "episodes": 20,
+        "checkpoint": "models/dqn_best.pt"
     }
 }

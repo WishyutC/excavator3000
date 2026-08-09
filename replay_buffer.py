@@ -136,9 +136,10 @@ class UniformReplayBuffer:
         self._transitions.clear()
 
 
-def create_replay_buffer():
+def create_replay_buffer(training_config=None):
     """Build the configured training replay buffer."""
-    training_config = CONFIG["training"]
+    if training_config is None:
+        training_config = CONFIG["training"]
     replay_config = training_config["replay_buffer"]
 
     if replay_config["type"] != "uniform":

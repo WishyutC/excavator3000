@@ -122,8 +122,15 @@ class RobotController:
         self.hud_socket = None
         self.hud_process = None
         self.hud_update_count = 0
+        self.observer_enabled = (
+            OBSERVER_CONFIG["enabled"]
+            and (
+                CONFIG["program"]["mode"] != "train"
+                or OBSERVER_CONFIG["enabled_in_training"]
+            )
+        )
 
-        if OBSERVER_CONFIG["enabled"]:
+        if self.observer_enabled:
             self.hud_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
             if OBSERVER_CONFIG["auto_launch"]:
@@ -269,7 +276,7 @@ class RobotController:
         info
     ):
 
-        if not OBSERVER_CONFIG["enabled"] or self.hud_socket is None:
+        if not self.observer_enabled or self.hud_socket is None:
             return
 
         self.hud_update_count += 1
@@ -307,6 +314,7 @@ class RobotController:
             "is_success": info["is_success"],
             "goal_distance_m": info["goal_distance_m"],
             "reward_breakdown": info.get("reward_breakdown", {}),
+            "training": info.get("training", {}),
             "sensors": [
                 {
                     "raw": value,

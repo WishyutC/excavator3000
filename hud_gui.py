@@ -303,11 +303,17 @@ class AgentHUD:
             outline="#233244",
             width=2
         )
+        training = self.latest.get("training", {})
+        mode = training.get("mode", "test").upper()
+        buffer_text = (
+            f' / BUFFER {training.get("buffer_size", 0)}'
+            if training else ""
+        )
         self.canvas.create_text(
             748,
             92,
             anchor="w",
-            text="AGENT STATE",
+            text=f"AGENT STATE / {mode}{buffer_text}",
             fill=MUTED,
             font=("Segoe UI", 11, "bold")
         )
@@ -348,10 +354,17 @@ class AgentHUD:
                 TEXT
             ),
             (
-                "TARGET / TURN RATE",
+                "EPSILON / LOSS" if training else "TARGET / TURN RATE",
                 (
-                    f'{self.latest.get("target_linear_speed_m_s", 0.0) * 100:+.1f} cm/s   '
-                    f'{self.latest.get("angular_speed_rad_s", 0.0):+.2f} rad/s'
+                    (
+                        f'{training.get("epsilon", 0.0):.3f}   '
+                        f'{training.get("loss", 0.0):.5f}'
+                    )
+                    if training
+                    else (
+                        f'{self.latest.get("target_linear_speed_m_s", 0.0) * 100:+.1f} cm/s   '
+                        f'{self.latest.get("angular_speed_rad_s", 0.0):+.2f} rad/s'
+                    )
                 ),
                 TEXT
             ),
