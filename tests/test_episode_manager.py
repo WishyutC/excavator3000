@@ -1,5 +1,6 @@
 import unittest
 
+from config import CONFIG
 from episode_manager import EpisodeManager, TerminationReason
 
 
@@ -59,7 +60,7 @@ class EpisodeManagerTests(unittest.TestCase):
     def test_timeout_occurs_at_configured_step(self):
         status = self.create_manager((1.0, 0.0, 0.0)).evaluate(
             [0.0] * 8,
-            500
+            CONFIG["environment"]["max_steps"]
         )
 
         self.assertEqual(status.reason, TerminationReason.TIMEOUT)

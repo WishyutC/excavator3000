@@ -1,5 +1,6 @@
 import unittest
 
+from config import CONFIG
 from episode_manager import TerminationReason
 from reward_calculator import RewardCalculator
 
@@ -10,6 +11,7 @@ class RewardCalculatorTests(unittest.TestCase):
         self.clear_observation = [0.0] * 10
 
     def test_goal_reward_decays_from_150_to_100(self):
+        maximum_steps = CONFIG["environment"]["max_steps"]
         early = self.calculator.calculate(
             [],
             TerminationReason.GOAL_REACHED,
@@ -18,12 +20,12 @@ class RewardCalculatorTests(unittest.TestCase):
         halfway = self.calculator.calculate(
             [],
             TerminationReason.GOAL_REACHED,
-            250
+            maximum_steps // 2
         )
         late = self.calculator.calculate(
             [],
             TerminationReason.GOAL_REACHED,
-            500
+            maximum_steps
         )
 
         self.assertEqual(early.total, 150.0)
@@ -39,7 +41,7 @@ class RewardCalculatorTests(unittest.TestCase):
         timeout = self.calculator.calculate(
             [],
             TerminationReason.TIMEOUT,
-            500
+            CONFIG["environment"]["max_steps"]
         )
 
         self.assertEqual(collision.total, -100.0)
@@ -94,7 +96,7 @@ class RewardCalculatorTests(unittest.TestCase):
         end = self.calculator.calculate(
             self.clear_observation,
             TerminationReason.RUNNING,
-            500
+            CONFIG["environment"]["max_steps"]
         )
 
         self.assertAlmostEqual(start.time, -0.005)
@@ -122,6 +124,7 @@ class RewardCalculatorTests(unittest.TestCase):
     def test_safe_driving_until_timeout_still_has_negative_return(self):
         observation = self.clear_observation.copy()
         observation[8] = 1.0
+        maximum_steps = CONFIG["environment"]["max_steps"]
 
         episode_return = sum(
             self.calculator.calculate(
@@ -129,12 +132,12 @@ class RewardCalculatorTests(unittest.TestCase):
                 TerminationReason.RUNNING,
                 step
             ).total
-            for step in range(1, 500)
+            for step in range(1, maximum_steps)
         )
         episode_return += self.calculator.calculate(
             observation,
             TerminationReason.TIMEOUT,
-            500
+            maximum_steps
         ).total
 
         self.assertLess(episode_return, 0.0)

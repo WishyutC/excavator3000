@@ -6,6 +6,8 @@ venv/
 *.onnx
 *.pt
 *.pth
+*.sh
+.dashboard-*
 runs/
 models/
 tmp/
