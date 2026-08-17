@@ -63,6 +63,15 @@
             <span>Timeout <strong id="timeout-rate">0%</strong></span>
             <span>Collision <strong id="collision-rate">0%</strong></span>
           </div>
+          <p class="subchart-label">Latest action mix</p>
+          <div class="termination-bar" aria-label="Latest episode action percentages">
+            <span id="bar-forward" class="bar-forward"></span><span id="bar-left" class="bar-left"></span><span id="bar-right" class="bar-right"></span>
+          </div>
+          <div class="termination-labels">
+            <span>Forward <strong id="forward-rate">0%</strong></span>
+            <span>Left <strong id="left-rate">0%</strong></span>
+            <span>Right <strong id="right-rate">0%</strong></span>
+          </div>
         </section>
         <section class="chart-panel">
           <div class="section-heading"><div><h2>Learning loss</h2><p>Log scale reveals both spikes and recovery</p></div></div>
@@ -74,8 +83,8 @@
         <div class="section-heading"><div><h2>Recent episodes</h2><p>Newest result first</p></div></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Episode</th><th>Reward</th><th>Steps</th><th>Result</th><th>Epsilon</th><th>Loss</th></tr></thead>
-            <tbody id="episode-table"><tr><td colspan="6">Waiting for training data…</td></tr></tbody>
+            <thead><tr><th>Episode</th><th>Reward</th><th>Steps</th><th>Progress</th><th>Result</th><th>Epsilon</th><th>Loss</th></tr></thead>
+            <tbody id="episode-table"><tr><td colspan="7">Waiting for training data…</td></tr></tbody>
           </table>
         </div>
       </section>

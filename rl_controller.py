@@ -1,5 +1,6 @@
 """Webots entry point for test, DQN training, and evaluation modes."""
 
+import json
 from pathlib import Path
 
 from config import CONFIG
@@ -68,6 +69,39 @@ def create_agent(environment):
     return agent
 
 
+def run_turn_diagnostic(environment):
+    """Verify both physical turn actions in the real Webots controller."""
+
+    turn_steps = int(CONFIG["diagnostics"]["turn_steps"])
+    minimum_rate = float(CONFIG["diagnostics"]["minimum_turn_rate_rad_s"])
+    results = {}
+
+    for action, label in ((1, "left"), (2, "right")):
+        environment.robot.reset()
+        rates = []
+        environment.robot.apply_action(action)
+        for _ in range(turn_steps):
+            if environment.robot.step() == -1:
+                break
+            rates.append(environment.robot.get_turn_rate())
+        environment.robot.stop()
+        mean_rate = sum(rates) / len(rates) if rates else 0.0
+        results[label] = {
+            "steps": len(rates),
+            "mean_turn_rate_rad_s": mean_rate,
+            "passed": abs(mean_rate) >= minimum_rate
+        }
+
+    passed = all(item["passed"] for item in results.values())
+    if passed and results["left"]["mean_turn_rate_rad_s"] * results["right"]["mean_turn_rate_rad_s"] >= 0:
+        passed = False
+        results["direction_check"] = "left and right did not rotate oppositely"
+
+    print("TURN_DIAGNOSTIC_JSON=" + json.dumps({"passed": passed, **results}))
+    if not passed:
+        raise RuntimeError("Turn diagnostic failed. Review wheel action ratios.")
+
+
 def run_training(environment):
     from dqn_trainer import DQNTrainer
 
@@ -75,6 +109,7 @@ def run_training(environment):
     agent = create_agent(environment)
     start_episode = 0
 
+    loaded = None
     if training_config["resume"]:
         checkpoint = (
             Path(training_config["save_directory"])
@@ -89,6 +124,14 @@ def run_training(environment):
         print(f"Resumed training from episode {start_episode}: {checkpoint}")
 
     trainer = DQNTrainer(environment, agent)
+    if loaded is not None:
+        extra = loaded.get("extra", {})
+        trainer.best_success_reward = float(
+            extra.get("best_success_reward", float("-inf"))
+        )
+        trainer.best_candidate_reward = float(
+            extra.get("best_candidate_reward", float("-inf"))
+        )
     trainer.train(
         episodes=training_config["episodes"],
         start_episode=start_episode
@@ -123,12 +166,14 @@ def main():
     mode = CONFIG["program"]["mode"].lower()
     runners = {
         "test": run_test,
+        "diagnostic": run_turn_diagnostic,
         "train": run_training,
         "evaluate": run_evaluation
     }
     if mode not in runners:
         raise ValueError(
-            f'Unsupported program mode "{mode}". Use test, train, or evaluate.'
+            f'Unsupported program mode "{mode}". '
+            "Use test, diagnostic, train, or evaluate."
         )
 
     environment = RCEnvironment()

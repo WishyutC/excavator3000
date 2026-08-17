@@ -8,7 +8,7 @@ import secrets
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from waitress import serve
 
-from dashboard_config import public_fields, update_config
+from dashboard_config import public_fields, read_config, update_config
 from dashboard_data import TrainingDataReader
 from dashboard_process import TrainingProcessManager
 
@@ -37,9 +37,10 @@ def create_app(project_root=PROJECT_ROOT):
     app.secret_key = _secret(root / ".dashboard-secret", "DASHBOARD_SECRET")
     dashboard_token = _secret(root / ".dashboard-token", "DASHBOARD_TOKEN", 18)
     csrf_token = secrets.token_urlsafe(24)
-    data_reader = TrainingDataReader(root / "runs" / "training.csv")
-    process_manager = TrainingProcessManager(root)
     config_path = root / "config.py"
+    logging_directory = read_config(config_path)["logging"]["directory"]
+    data_reader = TrainingDataReader(root / logging_directory / "training.csv")
+    process_manager = TrainingProcessManager(root)
 
     def authenticated(function):
         @wraps(function)

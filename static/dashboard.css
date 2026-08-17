@@ -66,8 +66,10 @@ canvas { display: block; width: 100%; max-width: 100%; }
 .termination-bar { display: flex; width: 100%; height: 22px; overflow: hidden; border-radius: 6px; background: var(--surface-2); margin: 25px 0 13px; }
 .termination-bar span { display: block; min-width: 0; transition: width .25s ease; }
 .bar-goal { background: var(--green); }.bar-timeout { background: var(--yellow); }.bar-collision { background: var(--red); }.bar-other { background: var(--muted); }
+.bar-forward { background: var(--cyan); }.bar-left { background: var(--green); }.bar-right { background: var(--yellow); }
 .termination-labels { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 12px; }
 .termination-labels strong { color: var(--text); margin-left: 3px; }
+.subchart-label { color: var(--muted); font-size: 12px; margin: 24px 0 -15px; }
 
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }

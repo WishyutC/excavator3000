@@ -125,7 +125,7 @@ class RobotController:
         self.observer_enabled = (
             OBSERVER_CONFIG["enabled"]
             and (
-                CONFIG["program"]["mode"] != "train"
+                CONFIG["program"]["mode"] not in {"train", "diagnostic"}
                 or OBSERVER_CONFIG["enabled_in_training"]
             )
         )
@@ -176,6 +176,16 @@ class RobotController:
         """Return the normalized state consumed by the learning agent."""
 
         return self.get_observation()
+
+    def get_position(self):
+        """Return the current Webots world position of the robot center."""
+
+        return tuple(self.node.getPosition())
+
+    def get_turn_rate(self):
+        """Return the angular velocity around Webots' vertical Z axis."""
+
+        return float(self.node.getVelocity()[5])
 
     def apply_action(self, action):
 

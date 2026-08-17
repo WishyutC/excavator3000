@@ -18,6 +18,8 @@ class RewardResult:
     danger: float = 0.0
     time: float = 0.0
     stuck: float = 0.0
+    progress: float = 0.0
+    checkpoint: float = 0.0
 
     def to_info(self):
         return asdict(self)
@@ -42,7 +44,14 @@ class RewardCalculator:
             return termination_reason.value
         return str(termination_reason)
 
-    def calculate(self, observation, termination_reason, step_count):
+    def calculate(
+        self,
+        observation,
+        termination_reason,
+        step_count,
+        progress_reward=0.0,
+        checkpoint_reward=0.0
+    ):
         progress = clamp(step_count / self.max_steps, 0.0, 1.0)
         reason = self._reason_value(termination_reason)
 
@@ -51,6 +60,9 @@ class RewardCalculator:
 
         if reason == TerminationReason.TIMEOUT.value:
             return self._terminal_result(self.config["timeout"])
+
+        if reason == TerminationReason.STUCK.value:
+            return self._terminal_result(self.config["stuck_terminal"])
 
         if reason == TerminationReason.GOAL_REACHED.value:
             goal_reward = (
@@ -94,14 +106,25 @@ class RewardCalculator:
             if abs(forward_speed) < self.config["stuck_speed_threshold"]
             else 0.0
         )
-        total = safe_motion + danger + time + stuck
+        progress_component = float(progress_reward)
+        checkpoint_component = float(checkpoint_reward)
+        total = (
+            safe_motion
+            + danger
+            + time
+            + stuck
+            + progress_component
+            + checkpoint_component
+        )
 
         return RewardResult(
             total=total,
             safe_motion=safe_motion,
             danger=danger,
             time=time,
-            stuck=stuck
+            stuck=stuck,
+            progress=progress_component,
+            checkpoint=checkpoint_component
         )
 
     @staticmethod

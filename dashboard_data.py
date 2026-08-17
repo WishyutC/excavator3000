@@ -37,13 +37,41 @@ class TrainingDataReader:
                         parsed.append({
                             "episode": self._number(row, "episode", int),
                             "steps": self._number(row, "steps", int),
+                            "decisions": self._number(row, "decisions", int),
                             "reward": self._number(row, "total_reward", float),
+                            "mean_reward_per_step": self._number(
+                                row, "mean_reward_per_step", float
+                            ),
                             "reason": row.get("termination_reason", "unknown"),
                             "success": row.get("success", "").lower() == "true",
                             "epsilon": self._number(row, "epsilon", float),
                             "buffer_size": self._number(row, "buffer_size", int),
                             "training_steps": self._number(row, "training_steps", int),
-                            "loss": self._number(row, "loss", float, None)
+                            "loss": self._number(row, "loss", float, None),
+                            "min_goal_distance_m": self._number(
+                                row, "min_goal_distance_m", float, None
+                            ),
+                            "final_goal_distance_m": self._number(
+                                row, "final_goal_distance_m", float, None
+                            ),
+                            "track_progress": self._number(
+                                row, "track_progress", float
+                            ),
+                            "checkpoints_reached": self._number(
+                                row, "checkpoints_reached", int
+                            ),
+                            "checkpoint_count": self._number(
+                                row, "checkpoint_count", int
+                            ),
+                            "action_forward_pct": self._number(
+                                row, "action_forward_pct", float
+                            ),
+                            "action_left_pct": self._number(
+                                row, "action_left_pct", float
+                            ),
+                            "action_right_pct": self._number(
+                                row, "action_right_pct", float
+                            )
                         })
             except (OSError, csv.Error):
                 return list(self._rows)

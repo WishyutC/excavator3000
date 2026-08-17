@@ -22,13 +22,18 @@ SAMPLE_CONFIG = '''CONFIG = {
             "danger_penalty_scale": 0.20,
             "time_penalty_start": 0.005,
             "time_penalty_growth": 0.020
-        }
+        },
+        "progress": {"checkpoint_reward": 5.0, "distance_reward_scale": 2.0},
+        "stuck_detection": {"no_progress_steps": 400}
     },
     "robot": {"drive": {"speed_scale": 0.95}},
     "training": {
         "episodes": 10000,
         "gamma": 0.99,
         "learning_rate": 0.001,
+        "action_repeat": 4,
+        "double_dqn": True,
+        "reward_scale": 0.01,
         "epsilon": {"start": 1.0, "end": 0.05, "decay_steps": 50000},
         "target_update_steps": 1000,
         "save_every_episodes": 50,

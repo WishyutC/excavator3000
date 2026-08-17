@@ -4,6 +4,7 @@ import tempfile
 import unittest
 
 import torch
+from torch import nn
 
 from config import CONFIG
 from dqn_agent import DQNAgent
@@ -91,6 +92,44 @@ class DQNTests(unittest.TestCase):
                 agent.target_network.parameters()
             )
         ))
+
+    def test_double_dqn_selects_online_action_and_target_value(self):
+        class FixedValues(nn.Module):
+            def __init__(self, values):
+                super().__init__()
+                self.register_buffer("values", torch.tensor(values))
+
+            def forward(self, states):
+                return self.values.unsqueeze(0).expand(states.shape[0], -1)
+
+        config = small_training_config()
+        config["double_dqn"] = True
+        agent = DQNAgent(10, 3, config)
+        agent.online_network = FixedValues([0.0, 10.0, 1.0])
+        agent.target_network = FixedValues([100.0, 2.0, 50.0])
+
+        values = agent._next_state_values(torch.zeros((4, 10)))
+
+        self.assertTrue(torch.equal(values, torch.full((4,), 2.0)))
+
+    def test_reward_scale_is_applied_to_terminal_targets(self):
+        config = small_training_config()
+        config["gamma"] = 0.0
+        config["reward_scale"] = 0.01
+        agent = DQNAgent(10, 7, config)
+        for index in range(4):
+            agent.remember(
+                [0.0] * 10,
+                index,
+                100.0,
+                [0.0] * 10,
+                True,
+                "goal_reached"
+            )
+
+        metrics = agent.learn()
+
+        self.assertAlmostEqual(metrics.mean_target, 1.0)
 
     def test_checkpoint_round_trip_restores_counters_and_weights(self):
         config = small_training_config()

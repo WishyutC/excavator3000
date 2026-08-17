@@ -65,6 +65,15 @@ class EpisodeManagerTests(unittest.TestCase):
 
         self.assertEqual(status.reason, TerminationReason.TIMEOUT)
 
+    def test_stuck_terminates_before_timeout(self):
+        status = self.create_manager((1.0, 0.0, 0.0)).evaluate(
+            [0.0] * 8,
+            10,
+            stuck=True
+        )
+
+        self.assertEqual(status.reason, TerminationReason.STUCK)
+
     def test_simulation_stopped_status(self):
         status = EpisodeManager.simulation_stopped_status()
 

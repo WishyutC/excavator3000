@@ -141,7 +141,7 @@ class DQNAgent:
             batch.rewards,
             dtype=torch.float32,
             device=self.device
-        )
+        ) * float(self.config.get("reward_scale", 1.0))
         dones = torch.tensor(
             batch.dones,
             dtype=torch.float32,
@@ -159,7 +159,7 @@ class DQNAgent:
         selected_q = self.online_network(states).gather(1, actions).squeeze(1)
 
         with torch.no_grad():
-            next_q = self.target_network(next_states).max(dim=1).values
+            next_q = self._next_state_values(next_states)
             targets = rewards + self.config["gamma"] * (1.0 - dones) * next_q
 
         loss = self.loss_function(selected_q, targets)
@@ -185,6 +185,20 @@ class DQNAgent:
             training_steps=self.training_steps
         )
 
+    def _next_state_values(self, next_states):
+        """Return target values using Double DQN selection when configured."""
+
+        if self.config.get("double_dqn", False):
+            next_actions = self.online_network(next_states).argmax(
+                dim=1,
+                keepdim=True
+            )
+            return self.target_network(next_states).gather(
+                1,
+                next_actions
+            ).squeeze(1)
+        return self.target_network(next_states).max(dim=1).values
+
     def sync_target_network(self):
         self.target_network.load_state_dict(self.online_network.state_dict())
 
@@ -200,6 +214,8 @@ class DQNAgent:
             "optimizer": self.optimizer.state_dict(),
             "environment_steps": self.environment_steps,
             "training_steps": self.training_steps,
+            "double_dqn": bool(self.config.get("double_dqn", False)),
+            "reward_scale": float(self.config.get("reward_scale", 1.0)),
             "episode": int(episode),
             "extra": extra or {}
         }, checkpoint_path)

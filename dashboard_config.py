@@ -67,6 +67,20 @@ FIELDS = {
         "minimum": 0.0, "maximum": 1.0, "step": 0.001,
         "group": "Rewards"
     },
+    "environment.progress.checkpoint_reward": {
+        "label": "Checkpoint reward", "type": "float",
+        "minimum": 0.0, "maximum": 100.0, "step": 0.5,
+        "group": "Progress"
+    },
+    "environment.progress.distance_reward_scale": {
+        "label": "Distance progress scale", "type": "float",
+        "minimum": 0.0, "maximum": 20.0, "step": 0.1,
+        "group": "Progress"
+    },
+    "environment.stuck_detection.no_progress_steps": {
+        "label": "Stuck termination steps", "type": "int",
+        "minimum": 10, "maximum": 50_000, "group": "Progress"
+    },
     "training.episodes": {
         "label": "Target episode", "type": "int",
         "minimum": 1, "maximum": 10_000_000, "group": "DQN"
@@ -79,6 +93,18 @@ FIELDS = {
     "training.learning_rate": {
         "label": "Learning rate", "type": "float",
         "minimum": 0.000001, "maximum": 0.1, "step": 0.0001,
+        "group": "DQN"
+    },
+    "training.action_repeat": {
+        "label": "Action repeat", "type": "int",
+        "minimum": 1, "maximum": 20, "group": "DQN"
+    },
+    "training.double_dqn": {
+        "label": "Double DQN", "type": "bool", "group": "DQN"
+    },
+    "training.reward_scale": {
+        "label": "Learning reward scale", "type": "float",
+        "minimum": 0.0001, "maximum": 1.0, "step": 0.001,
         "group": "DQN"
     },
     "training.epsilon.start": {

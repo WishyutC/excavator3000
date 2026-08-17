@@ -44,8 +44,9 @@ class RewardCalculatorTests(unittest.TestCase):
             CONFIG["environment"]["max_steps"]
         )
 
-        self.assertEqual(collision.total, -100.0)
-        self.assertEqual(timeout.total, -50.0)
+        reward_config = CONFIG["environment"]["reward"]
+        self.assertEqual(collision.total, reward_config["collision"])
+        self.assertEqual(timeout.total, reward_config["timeout"])
 
     def test_waiting_is_always_negative(self):
         reward = self.calculator.calculate(
@@ -68,9 +69,10 @@ class RewardCalculatorTests(unittest.TestCase):
             0
         )
 
-        self.assertAlmostEqual(reward.safe_motion, 0.030)
-        self.assertAlmostEqual(reward.total, 0.025)
-        self.assertLess(reward.total, 0.03)
+        expected_motion = CONFIG["environment"]["reward"]["safe_motion_scale"]
+        self.assertAlmostEqual(reward.safe_motion, expected_motion)
+        self.assertAlmostEqual(reward.total, expected_motion - 0.005)
+        self.assertLess(reward.total, expected_motion)
 
     def test_fast_motion_near_wall_is_strongly_negative(self):
         observation = self.clear_observation.copy()
@@ -120,6 +122,35 @@ class RewardCalculatorTests(unittest.TestCase):
         )
 
         self.assertAlmostEqual(parts["total"], component_sum)
+
+    def test_progress_and_checkpoint_rewards_are_explicit_components(self):
+        reward = self.calculator.calculate(
+            self.clear_observation,
+            TerminationReason.RUNNING,
+            10,
+            progress_reward=0.02,
+            checkpoint_reward=5.0
+        )
+
+        self.assertEqual(reward.progress, 0.02)
+        self.assertEqual(reward.checkpoint, 5.0)
+        self.assertAlmostEqual(
+            reward.total,
+            reward.safe_motion + reward.danger + reward.time
+            + reward.stuck + reward.progress + reward.checkpoint
+        )
+
+    def test_stuck_has_terminal_penalty(self):
+        reward = self.calculator.calculate(
+            [],
+            TerminationReason.STUCK,
+            100
+        )
+
+        self.assertEqual(
+            reward.total,
+            CONFIG["environment"]["reward"]["stuck_terminal"]
+        )
 
     def test_safe_driving_until_timeout_still_has_negative_return(self):
         observation = self.clear_observation.copy()

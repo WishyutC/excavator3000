@@ -67,6 +67,15 @@ function updateMetrics(training) {
   document.getElementById('goal-rate').textContent = `${formatNumber(goal, 1)}%`;
   document.getElementById('timeout-rate').textContent = `${formatNumber(timeout, 1)}%`;
   document.getElementById('collision-rate').textContent = `${formatNumber(collision, 1)}%`;
+  const forward = latest.action_forward_pct || 0;
+  const left = latest.action_left_pct || 0;
+  const right = latest.action_right_pct || 0;
+  document.getElementById('bar-forward').style.width = `${forward}%`;
+  document.getElementById('bar-left').style.width = `${left}%`;
+  document.getElementById('bar-right').style.width = `${right}%`;
+  document.getElementById('forward-rate').textContent = `${formatNumber(forward, 1)}%`;
+  document.getElementById('left-rate').textContent = `${formatNumber(left, 1)}%`;
+  document.getElementById('right-rate').textContent = `${formatNumber(right, 1)}%`;
 }
 
 function cssColor(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
@@ -133,16 +142,17 @@ function updateCharts(history) {
 
 function updateTable(rows) {
   const body = document.getElementById('episode-table');
-  if (!rows.length) { body.innerHTML = '<tr><td colspan="6">Waiting for training data…</td></tr>'; return; }
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="7">Waiting for training data…</td></tr>'; return; }
   body.replaceChildren(...rows.map(row => {
     const tr = document.createElement('tr');
     const values = [
       formatNumber(row.episode, 0), formatNumber(row.reward), formatNumber(row.steps, 0),
+      `${row.checkpoints_reached}/${row.checkpoint_count}`,
       row.reason.replaceAll('_', ' '), formatNumber(row.epsilon, 3), formatNumber(row.loss, 4)
     ];
     values.forEach((value, index) => {
       const cell = document.createElement('td');
-      if (index === 3) { const badge = document.createElement('span'); badge.className = `result ${row.reason}`; badge.textContent = value; cell.appendChild(badge); }
+      if (index === 4) { const badge = document.createElement('span'); badge.className = `result ${row.reason}`; badge.textContent = value; cell.appendChild(badge); }
       else cell.textContent = value;
       tr.appendChild(cell);
     });

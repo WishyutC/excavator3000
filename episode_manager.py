@@ -13,6 +13,7 @@ class TerminationReason(str, Enum):
     COLLISION = "collision"
     GOAL_REACHED = "goal_reached"
     TIMEOUT = "timeout"
+    STUCK = "stuck"
     SIMULATION_STOPPED = "simulation_stopped"
 
 
@@ -101,7 +102,7 @@ class EpisodeManager:
                 goal_config
             )
 
-    def evaluate(self, raw_sensor_values, step_count):
+    def evaluate(self, raw_sensor_values, step_count, stuck=False):
         measurement = (
             self.goal_detector.measure()
             if self.goal_detector is not None
@@ -124,6 +125,8 @@ class EpisodeManager:
             reason = TerminationReason.COLLISION
         elif measurement is not None and measurement.reached:
             reason = TerminationReason.GOAL_REACHED
+        elif stuck:
+            reason = TerminationReason.STUCK
         elif step_count >= self.max_steps:
             reason = TerminationReason.TIMEOUT
         else:

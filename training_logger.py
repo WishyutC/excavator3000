@@ -10,13 +10,23 @@ class TrainingLogger:
     FIELDNAMES = (
         "episode",
         "steps",
+        "decisions",
         "total_reward",
+        "mean_reward_per_step",
         "termination_reason",
         "success",
         "epsilon",
         "buffer_size",
         "training_steps",
-        "loss"
+        "loss",
+        "min_goal_distance_m",
+        "final_goal_distance_m",
+        "track_progress",
+        "checkpoints_reached",
+        "checkpoint_count",
+        "action_forward_pct",
+        "action_left_pct",
+        "action_right_pct"
     )
 
     def __init__(self, path=None, enabled=None):

@@ -1,5 +1,6 @@
 __pycache__/
 *.py[cod]
+*.log
 .venv/
 venv/
 *.tflite
@@ -10,4 +11,6 @@ venv/
 .dashboard-*
 runs/
 models/
+runs_*/
+models_*/
 tmp/

@@ -18,11 +18,12 @@ class MemoryLogger:
 
 class FakeEnvironment:
     state_size = 10
-    action_size = 7
+    action_size = 3
 
-    def __init__(self):
+    def __init__(self, success=True):
         self.steps = 0
         self.hud_updates = []
+        self.success = success
 
     def reset(self):
         self.steps = 0
@@ -32,9 +33,20 @@ class FakeEnvironment:
         self.steps += 1
         done = self.steps == 2
         info = {
-            "termination_reason": "goal_reached" if done else "running",
-            "is_success": done,
-            "reward_breakdown": {}
+            "termination_reason": (
+                "goal_reached" if done and self.success
+                else "collision" if done
+                else "running"
+            ),
+            "is_success": done and self.success,
+            "reward_breakdown": {},
+            "goal_distance_m": 0.0 if done and self.success else 1.0,
+            "episode_steps": self.steps,
+            "progress": {
+                "progress_fraction": 1.0 if done else 0.5,
+                "checkpoints_reached": 2 if done else 1,
+                "checkpoint_count": 2
+            }
         }
         return [0.1] * 10, 2.0 if done else 0.1, done, info
 
@@ -68,7 +80,7 @@ class DQNTrainerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             config = trainer_config(directory)
             environment = FakeEnvironment()
-            agent = DQNAgent(10, 7, config)
+            agent = DQNAgent(10, 3, config)
             logger = MemoryLogger()
             trainer = DQNTrainer(environment, agent, config, logger)
 
@@ -85,12 +97,37 @@ class DQNTrainerTests(unittest.TestCase):
                 (Path(directory) / config["best_checkpoint_name"]).exists()
             )
             self.assertGreater(agent.training_steps, 0)
+            self.assertAlmostEqual(
+                summaries[-1].action_forward_pct
+                + summaries[-1].action_left_pct
+                + summaries[-1].action_right_pct,
+                100.0
+            )
+            self.assertEqual(summaries[-1].steps, 2)
+            self.assertEqual(summaries[-1].decisions, 2)
+
+    def test_failed_episode_saves_candidate_but_not_best(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = trainer_config(directory)
+            environment = FakeEnvironment(success=False)
+            agent = DQNAgent(10, 3, config)
+            trainer = DQNTrainer(environment, agent, config, MemoryLogger())
+
+            summaries = trainer.train(episodes=1)
+
+            self.assertFalse(summaries[0].success)
+            self.assertTrue(
+                (Path(directory) / config["candidate_checkpoint_name"]).exists()
+            )
+            self.assertFalse(
+                (Path(directory) / config["best_checkpoint_name"]).exists()
+            )
 
     def test_evaluation_does_not_store_or_learn(self):
         with tempfile.TemporaryDirectory() as directory:
             config = trainer_config(directory)
             environment = FakeEnvironment()
-            agent = DQNAgent(10, 7, config)
+            agent = DQNAgent(10, 3, config)
             trainer = DQNTrainer(environment, agent, config, MemoryLogger())
 
             summaries = trainer.evaluate(episodes=2)
