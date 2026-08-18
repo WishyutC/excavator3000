@@ -6,7 +6,7 @@ import os
 CONFIG = {
     "program": {
         # Modes: "test", "diagnostic", "train", or "evaluate".
-        "mode": "train",
+        "mode": "evaluate",
         "terminal_output": False,
         "test_action": 2
     },
@@ -26,8 +26,9 @@ CONFIG = {
             "speed_scale": 0.95,
             "action_ratios": {
                 "forward": [1.0, 1.0],
-                "turn_left": [0.45, 1.0],
-                "turn_right": [1.0, 0.45],
+                # Tight differential turns for the track's 90-degree bends.
+                "turn_left": [0.0, 0.80],
+                "turn_right": [0.80, 0.0],
                 "reverse": [-0.80, -0.80],
                 "stop": [0.0, 0.0],
                 "reverse_left": [-0.40, -0.80],
@@ -39,17 +40,18 @@ CONFIG = {
     "observation": {
         # DQN input: 8 obstacle proximities + forward speed + turn rate.
         "sensor_count": 8,
-        # Matches the lookup-table range in car_env_test_v2.wbt.
-        "sensor_max_distance_m": 0.5,
+        # Matches the extended lookup-table range in car_env_test_v2.wbt.
+        # The 1.4 m corridor needs >0.7 m coverage to disambiguate corners.
+        "sensor_max_distance_m": 0.8,
         # Physical normalization limits; values outside them are clipped.
         "max_forward_speed_m_s": 0.129,
         "max_turn_rate_rad_s": 2.0
     },
 
     "environment": {
-        # Physics steps. With action_repeat=4, the agent makes at most 750
-        # decisions during a 3,000-step episode.
-        "max_steps": 3_000,
+        # Physics steps. The full 10-checkpoint route is longer than 3,000
+        # steps; stuck detection still ends policies that stop progressing.
+        "max_steps": 10_000,
         "collision_threshold": 3900,
         # Keep the mapped start position until track-safe spawn zones are added.
         "random_start": False,
@@ -72,24 +74,31 @@ CONFIG = {
         },
         "reward": {
             "collision": -100.0,
-            "timeout": -75.0,
+            "timeout": -100.0,
             "goal_base": 100.0,
             "goal_time_bonus": 50.0,
+            "curriculum_goal_base": 80.0,
+            "curriculum_goal_time_bonus": 40.0,
             "safe_motion_scale": 0.01,
             "danger_penalty_scale": 0.2,
+            "clear_space_steering_penalty_scale": 0.10,
             "time_penalty_start": 0.005,
             "time_penalty_growth": 0.02,
             "stuck_speed_threshold": 0.05,
             "stuck_penalty": 0.020,
-            "stuck_terminal": -60.0
+            # This remains worse than collision after roughly 100 decisions
+            # of gamma discount, preventing a deliberate delayed-stop policy.
+            "stuck_terminal": -200.0
         },
         "progress": {
             # Privileged training signal only. Waypoint coordinates never enter
             # the observation vector exported to the ESP32 policy.
             "enabled": True,
-            "checkpoint_radius_m": 0.55,
-            "checkpoint_reward": 5.0,
-            "distance_reward_scale": 2.0,
+            # A learnable capture region for uniform replay, while remaining
+            # 20 cm tighter than the original premature 0.55 m transition.
+            "checkpoint_radius_m": 0.35,
+            "checkpoint_reward": 25.0,
+            "distance_reward_scale": 10.0,
             "distance_delta_clip_m": 0.03,
             "waypoints": [
                 [-2.85, -0.75],
@@ -131,36 +140,158 @@ CONFIG = {
     "logging": {
         "enabled": True,
         "format": "csv",
-        "directory": "runs/curriculum_v2"
+        "directory": "runs/curriculum_v4_macro_final"
     },
 
     "training": {
         "algorithm": "dqn",
         "device": "auto",
         "seed": 42,
-        "episodes": 10000,
-        "gamma": 0.99,
-        "learning_rate": 0.0003,
+        "episodes": 20_000,
+        # At action_repeat=4 the full route spans far more than 100 decisions;
+        # gamma=0.999 keeps later checkpoints relevant to earlier actions.
+        "gamma": 0.999,
+        "learning_rate": 0.0002,
         "hidden_sizes": [64, 64],
         # Basic curriculum: forward, left, and right only.
         "action_ids": [0, 1, 2],
         "action_repeat": 4,
+        # A turn is one semantic DQN action. The low-level controller commits
+        # to the bend and clears the corner before requesting another action,
+        # preventing left/right oscillation when several sensors fire at once.
+        # On the ESP32 this angle-based maneuver can be implemented with an
+        # IMU, wheel encoders, or a hardware-tuned equivalent duration.
+        "turn_macro": {
+            "enabled": True,
+            "target_angle_rad": 1.75,
+            "exit_heading_angle_rad": 1.57,
+            "maximum_turn_steps": 80,
+            "exit_forward_steps": 560,
+            "straighten_after_steps": 500,
+            "centering_gain": 0.10,
+            "centering_integral_gain": 0.0,
+            "centering_integral_limit": 25.0,
+            "centering_integral_decay": 0.96,
+            "heading_hold_gain": 1.0,
+            "minimum_inner_wheel_ratio": 0.60
+        },
         "double_dqn": True,
         "reward_scale": 0.01,
+        # Enabled per guided curriculum stage; zero in ordinary DQN training.
+        "expert_imitation_weight": 0.0,
         "epsilon": {
             "start": 1.0,
             "end": 0.05,
             "decay_steps": 1_000_000
         },
-        "train_every_steps": 1,
+        # Store every transition but update the network every four actions,
+        # the standard DQN cadence for lower compute and less correlated SGD.
+        "train_every_steps": 4,
         "gradient_clip_norm": 10.0,
         "target_update_steps": 1000,
-        "save_directory": "models/curriculum_v2",
+        "save_directory": "models/curriculum_v4_macro_final",
         "checkpoint_name": "dqn_latest.pt",
         "best_checkpoint_name": "dqn_best.pt",
         "candidate_checkpoint_name": "dqn_candidate.pt",
         "save_every_episodes": 50,
         "resume": False,
+        "curriculum": {
+            "enabled": True,
+            "start_stage_index": 6,
+            "initial_policy_checkpoint": (
+                "models/curriculum_v4_macro/stage_05_cp6/dqn_latest.pt"
+            ),
+            "check_interval_episodes": 100,
+            "success_window_episodes": 100,
+            "training_success_rate": 0.75,
+            "evaluation_episodes": 50,
+            "evaluation_success_rate": 0.70,
+            "expert_heading_tolerance_rad": 0.12,
+            "sensor_expert_front_threshold": 0.35,
+            "sensor_expert_turn_checkpoints": [1, 3, 5, 7, 9],
+            # Each new stage transfers policy weights only. Optimizer state,
+            # replay memory, and epsilon schedule restart for the new task.
+            "stages": [
+                {
+                    "name": "stage_01_cp1",
+                    "target_checkpoint": 1,
+                    # Bootstrap the same 3-output network with successful
+                    # straight-driving demonstrations before turns unlock.
+                    "forced_action": 0,
+                    "minimum_episodes": 150,
+                    "maximum_episodes": 400,
+                    "epsilon_start": 1.0,
+                    "epsilon_decay_steps": 60_000
+                },
+                {
+                    "name": "stage_02_cp2",
+                    "target_checkpoint": 2,
+                    "expert_policy": "sensor",
+                    "minimum_episodes": 300,
+                    "maximum_episodes": 300,
+                    "epsilon_start": 0.20,
+                    "epsilon_decay_steps": 100_000
+                },
+                {
+                    "name": "stage_03_cp3",
+                    "target_checkpoint": 3,
+                    "expert_policy": "sensor",
+                    "minimum_episodes": 500,
+                    "maximum_episodes": 1_800,
+                    "epsilon_start": 0.40,
+                    "epsilon_decay_steps": 200_000
+                },
+                {
+                    "name": "stage_04_cp4",
+                    "target_checkpoint": 4,
+                    "expert_policy": "sensor",
+                    "minimum_episodes": 300,
+                    "maximum_episodes": 300,
+                    "epsilon_start": 0.45,
+                    "epsilon_decay_steps": 300_000
+                },
+                {
+                    "name": "stage_05_cp6",
+                    "target_checkpoint": 6,
+                    "expert_policy": "sensor",
+                    "minimum_episodes": 100,
+                    "maximum_episodes": 600,
+                    "greedy_check_interval_episodes": 100,
+                    "epsilon_start": 0.45,
+                    "epsilon_decay_steps": 400_000
+                },
+                {
+                    "name": "stage_06_cp8",
+                    "target_checkpoint": 8,
+                    "expert_policy": "sensor",
+                    "minimum_episodes": 100,
+                    "maximum_episodes": 300,
+                    "greedy_check_interval_episodes": 100,
+                    "epsilon_start": 0.45,
+                    "epsilon_decay_steps": 500_000
+                },
+                {
+                    "name": "stage_07_cp10",
+                    "target_checkpoint": 10,
+                    "expert_policy": "sensor",
+                    "minimum_episodes": 100,
+                    "maximum_episodes": 300,
+                    "greedy_check_interval_episodes": 100,
+                    "epsilon_start": 0.45,
+                    "epsilon_decay_steps": 600_000
+                },
+                {
+                    "name": "stage_08_goal",
+                    "target_checkpoint": None,
+                    "expert_policy": "sensor",
+                    "minimum_episodes": 100,
+                    "maximum_episodes": 300,
+                    "greedy_check_interval_episodes": 100,
+                    "epsilon_start": 0.35,
+                    "epsilon_decay_steps": 600_000
+                }
+            ]
+        },
         "replay_buffer": {
             "type": "uniform",
             "capacity": 50000,
@@ -170,13 +301,18 @@ CONFIG = {
     },
 
     "evaluation": {
-        "episodes": 20,
-        "checkpoint": "models/curriculum_v2/dqn_best.pt"
+        "episodes": 50,
+        "checkpoint": (
+            "models/curriculum_v4_macro_final/"
+            "stage_08_goal/dqn_latest.pt"
+        ),
+        "curriculum_target_checkpoint": None
     },
 
     "diagnostics": {
         "turn_steps": 80,
-        "minimum_turn_rate_rad_s": 0.1
+        "minimum_turn_rate_rad_s": 0.1,
+        "sensor_expert_trace": False
     }
 }
 

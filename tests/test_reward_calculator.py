@@ -48,6 +48,20 @@ class RewardCalculatorTests(unittest.TestCase):
         self.assertEqual(collision.total, reward_config["collision"])
         self.assertEqual(timeout.total, reward_config["timeout"])
 
+    def test_curriculum_target_uses_its_own_success_reward(self):
+        reward = self.calculator.calculate(
+            [],
+            TerminationReason.CURRICULUM_COMPLETE,
+            0
+        )
+
+        reward_config = CONFIG["environment"]["reward"]
+        self.assertEqual(
+            reward.total,
+            reward_config["curriculum_goal_base"]
+            + reward_config["curriculum_goal_time_bonus"]
+        )
+
     def test_waiting_is_always_negative(self):
         reward = self.calculator.calculate(
             self.clear_observation,
@@ -118,7 +132,10 @@ class RewardCalculatorTests(unittest.TestCase):
         parts = reward.to_info()
         component_sum = sum(
             parts[name]
-            for name in ("terminal", "safe_motion", "danger", "time", "stuck")
+            for name in (
+                "terminal", "safe_motion", "danger", "steering", "time",
+                "stuck"
+            )
         )
 
         self.assertAlmostEqual(parts["total"], component_sum)
@@ -137,8 +154,29 @@ class RewardCalculatorTests(unittest.TestCase):
         self.assertAlmostEqual(
             reward.total,
             reward.safe_motion + reward.danger + reward.time
-            + reward.stuck + reward.progress + reward.checkpoint
+            + reward.steering + reward.stuck + reward.progress
+            + reward.checkpoint
         )
+
+    def test_turning_in_clear_space_is_penalized_but_near_wall_fades(self):
+        clear_turn = self.clear_observation.copy()
+        clear_turn[9] = 1.0
+        near_wall_turn = clear_turn.copy()
+        near_wall_turn[0] = 1.0
+
+        clear = self.calculator.calculate(
+            clear_turn,
+            TerminationReason.RUNNING,
+            0
+        )
+        near_wall = self.calculator.calculate(
+            near_wall_turn,
+            TerminationReason.RUNNING,
+            0
+        )
+
+        self.assertLess(clear.steering, 0.0)
+        self.assertEqual(near_wall.steering, 0.0)
 
     def test_stuck_has_terminal_penalty(self):
         reward = self.calculator.calculate(

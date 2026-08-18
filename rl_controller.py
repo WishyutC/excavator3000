@@ -58,10 +58,14 @@ def run_test(environment):
             )
 
 
-def create_agent(environment):
+def create_agent(environment, training_config=None):
     from dqn_agent import DQNAgent
 
-    agent = DQNAgent(environment.state_size, environment.action_size)
+    agent = DQNAgent(
+        environment.state_size,
+        environment.action_size,
+        training_config=training_config
+    )
     print(
         f"DQN ready | device {agent.device} | "
         f"parameters {agent.online_network.parameter_count:,}"
@@ -97,7 +101,14 @@ def run_turn_diagnostic(environment):
         passed = False
         results["direction_check"] = "left and right did not rotate oppositely"
 
-    print("TURN_DIAGNOSTIC_JSON=" + json.dumps({"passed": passed, **results}))
+    diagnostic = {"passed": passed, **results}
+    diagnostic_path = Path("runs") / "turn_diagnostic.json"
+    diagnostic_path.parent.mkdir(parents=True, exist_ok=True)
+    diagnostic_path.write_text(
+        json.dumps(diagnostic, indent=2, allow_nan=False),
+        encoding="utf-8"
+    )
+    print("TURN_DIAGNOSTIC_JSON=" + json.dumps(diagnostic))
     if not passed:
         raise RuntimeError("Turn diagnostic failed. Review wheel action ratios.")
 
@@ -106,6 +117,12 @@ def run_training(environment):
     from dqn_trainer import DQNTrainer
 
     training_config = CONFIG["training"]
+    if training_config.get("curriculum", {}).get("enabled", False):
+        from curriculum_trainer import run_staged_curriculum
+
+        run_staged_curriculum(environment, training_config)
+        return
+
     agent = create_agent(environment)
     start_episode = 0
 
@@ -142,6 +159,12 @@ def run_evaluation(environment):
     from dqn_trainer import DQNTrainer
 
     evaluation_config = CONFIG["evaluation"]
+    target_checkpoint = evaluation_config.get("curriculum_target_checkpoint")
+    if target_checkpoint is not None:
+        environment.set_curriculum_stage(
+            "evaluation",
+            int(target_checkpoint)
+        )
     checkpoint = Path(evaluation_config["checkpoint"])
     if not checkpoint.exists():
         raise FileNotFoundError(f"Evaluation checkpoint not found: {checkpoint}")

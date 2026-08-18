@@ -187,6 +187,12 @@ class RobotController:
 
         return float(self.node.getVelocity()[5])
 
+    def get_forward_direction(self):
+        """Return the robot's local +X direction in world XY coordinates."""
+
+        orientation = self.node.getOrientation()
+        return float(orientation[0]), float(orientation[3])
+
     def apply_action(self, action):
 
         if action not in self.action_table:
@@ -200,6 +206,14 @@ class RobotController:
         left = max(-self.motor_max_speed, min(self.motor_max_speed, left))
         right = max(-self.motor_max_speed, min(self.motor_max_speed, right))
 
+        self.left_motor.setVelocity(left)
+        self.right_motor.setVelocity(right)
+
+    def apply_drive_ratios(self, left_ratio, right_ratio):
+        """Apply deployable low-level wheel ratios during a macro maneuver."""
+
+        left = max(-1.0, min(1.0, float(left_ratio))) * self.drive_speed
+        right = max(-1.0, min(1.0, float(right_ratio))) * self.drive_speed
         self.left_motor.setVelocity(left)
         self.right_motor.setVelocity(right)
 

@@ -37,6 +37,11 @@ FIELDS = {
         "minimum": -1_000.0, "maximum": 0.0, "step": 1.0,
         "group": "Rewards"
     },
+    "environment.reward.stuck_terminal": {
+        "label": "Stuck reward", "type": "float",
+        "minimum": -1_000.0, "maximum": 0.0, "step": 1.0,
+        "group": "Rewards"
+    },
     "environment.reward.goal_base": {
         "label": "Goal base reward", "type": "float",
         "minimum": 0.0, "maximum": 1_000.0, "step": 1.0,
@@ -44,6 +49,16 @@ FIELDS = {
     },
     "environment.reward.goal_time_bonus": {
         "label": "Goal time bonus", "type": "float",
+        "minimum": 0.0, "maximum": 1_000.0, "step": 1.0,
+        "group": "Rewards"
+    },
+    "environment.reward.curriculum_goal_base": {
+        "label": "Curriculum target reward", "type": "float",
+        "minimum": 0.0, "maximum": 1_000.0, "step": 1.0,
+        "group": "Rewards"
+    },
+    "environment.reward.curriculum_goal_time_bonus": {
+        "label": "Curriculum time bonus", "type": "float",
         "minimum": 0.0, "maximum": 1_000.0, "step": 1.0,
         "group": "Rewards"
     },
@@ -55,6 +70,11 @@ FIELDS = {
     "environment.reward.danger_penalty_scale": {
         "label": "Danger penalty scale", "type": "float",
         "minimum": 0.0, "maximum": 5.0, "step": 0.01,
+        "group": "Rewards"
+    },
+    "environment.reward.clear_space_steering_penalty_scale": {
+        "label": "Clear-space steering penalty", "type": "float",
+        "minimum": 0.0, "maximum": 2.0, "step": 0.001,
         "group": "Rewards"
     },
     "environment.reward.time_penalty_start": {
@@ -129,6 +149,23 @@ FIELDS = {
     },
     "training.resume": {
         "label": "Resume latest checkpoint", "type": "bool", "group": "DQN"
+    },
+    "training.curriculum.enabled": {
+        "label": "Staged curriculum", "type": "bool", "group": "Curriculum"
+    },
+    "training.curriculum.training_success_rate": {
+        "label": "Training success threshold", "type": "float",
+        "minimum": 0.0, "maximum": 1.0, "step": 0.01,
+        "group": "Curriculum"
+    },
+    "training.curriculum.evaluation_episodes": {
+        "label": "Evaluation episodes", "type": "int",
+        "minimum": 1, "maximum": 10_000, "group": "Curriculum"
+    },
+    "training.curriculum.evaluation_success_rate": {
+        "label": "Evaluation success threshold", "type": "float",
+        "minimum": 0.0, "maximum": 1.0, "step": 0.01,
+        "group": "Curriculum"
     },
     "training.replay_buffer.capacity": {
         "label": "Replay capacity", "type": "int",
@@ -281,5 +318,11 @@ def public_fields(config_path):
     config = read_config(config_path)
     result = []
     for path, metadata in FIELDS.items():
-        result.append({"path": path, "value": value_at(config, path), **metadata})
+        try:
+            value = value_at(config, path)
+        except KeyError:
+            # Keep the dashboard compatible with older config files that do
+            # not yet contain newly introduced optional settings.
+            continue
+        result.append({"path": path, "value": value, **metadata})
     return result

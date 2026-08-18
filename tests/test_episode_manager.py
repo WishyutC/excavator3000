@@ -74,6 +74,27 @@ class EpisodeManagerTests(unittest.TestCase):
 
         self.assertEqual(status.reason, TerminationReason.STUCK)
 
+    def test_curriculum_target_is_a_success(self):
+        status = self.create_manager((1.0, 0.0, 0.0)).evaluate(
+            [0.0] * 8,
+            10,
+            curriculum_complete=True
+        )
+
+        self.assertEqual(status.reason, TerminationReason.CURRICULUM_COMPLETE)
+        self.assertTrue(status.is_success)
+        self.assertFalse(status.to_info()["goal_reached"])
+        self.assertTrue(status.to_info()["curriculum_complete"])
+
+    def test_collision_has_priority_over_curriculum_target(self):
+        status = self.create_manager((1.0, 0.0, 0.0)).evaluate(
+            [4000.0] + [0.0] * 7,
+            10,
+            curriculum_complete=True
+        )
+
+        self.assertEqual(status.reason, TerminationReason.COLLISION)
+
     def test_simulation_stopped_status(self):
         status = EpisodeManager.simulation_stopped_status()
 

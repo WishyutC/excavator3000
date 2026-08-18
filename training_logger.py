@@ -9,6 +9,9 @@ from config import CONFIG
 class TrainingLogger:
     FIELDNAMES = (
         "episode",
+        "stage_episode",
+        "curriculum_stage",
+        "curriculum_target_checkpoint",
         "steps",
         "decisions",
         "total_reward",

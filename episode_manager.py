@@ -12,6 +12,7 @@ class TerminationReason(str, Enum):
     RUNNING = "running"
     COLLISION = "collision"
     GOAL_REACHED = "goal_reached"
+    CURRICULUM_COMPLETE = "curriculum_complete"
     TIMEOUT = "timeout"
     STUCK = "stuck"
     SIMULATION_STOPPED = "simulation_stopped"
@@ -33,13 +34,19 @@ class EpisodeStatus:
 
     @property
     def is_success(self):
-        return self.reason == TerminationReason.GOAL_REACHED
+        return self.reason in {
+            TerminationReason.GOAL_REACHED,
+            TerminationReason.CURRICULUM_COMPLETE
+        }
 
     def to_info(self):
         return {
             "termination_reason": self.reason.value,
             "is_success": self.is_success,
-            "goal_reached": self.is_success,
+            "goal_reached": self.reason == TerminationReason.GOAL_REACHED,
+            "curriculum_complete": (
+                self.reason == TerminationReason.CURRICULUM_COMPLETE
+            ),
             "goal_distance_m": self.goal_distance_m,
             "goal_center_distance_m": self.goal_center_distance_m
         }
@@ -102,7 +109,13 @@ class EpisodeManager:
                 goal_config
             )
 
-    def evaluate(self, raw_sensor_values, step_count, stuck=False):
+    def evaluate(
+        self,
+        raw_sensor_values,
+        step_count,
+        stuck=False,
+        curriculum_complete=False
+    ):
         measurement = (
             self.goal_detector.measure()
             if self.goal_detector is not None
@@ -125,6 +138,8 @@ class EpisodeManager:
             reason = TerminationReason.COLLISION
         elif measurement is not None and measurement.reached:
             reason = TerminationReason.GOAL_REACHED
+        elif curriculum_complete:
+            reason = TerminationReason.CURRICULUM_COMPLETE
         elif stuck:
             reason = TerminationReason.STUCK
         elif step_count >= self.max_steps:

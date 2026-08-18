@@ -56,12 +56,13 @@
         <section class="chart-panel">
           <div class="section-heading"><div><h2>Termination mix</h2><p>Last 100 completed episodes</p></div></div>
           <div class="termination-bar" aria-label="Last 100 termination percentages">
-            <span id="bar-goal" class="bar-goal"></span><span id="bar-timeout" class="bar-timeout"></span><span id="bar-collision" class="bar-collision"></span><span id="bar-other" class="bar-other"></span>
+            <span id="bar-goal" class="bar-goal"></span><span id="bar-timeout" class="bar-timeout"></span><span id="bar-collision" class="bar-collision"></span><span id="bar-stuck" class="bar-stuck"></span><span id="bar-other" class="bar-other"></span>
           </div>
           <div class="termination-labels">
             <span>Goal <strong id="goal-rate">0%</strong></span>
             <span>Timeout <strong id="timeout-rate">0%</strong></span>
             <span>Collision <strong id="collision-rate">0%</strong></span>
+            <span>Stuck <strong id="stuck-rate">0%</strong></span>
           </div>
           <p class="subchart-label">Latest action mix</p>
           <div class="termination-bar" aria-label="Latest episode action percentages">
@@ -83,8 +84,8 @@
         <div class="section-heading"><div><h2>Recent episodes</h2><p>Newest result first</p></div></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Episode</th><th>Reward</th><th>Steps</th><th>Progress</th><th>Result</th><th>Epsilon</th><th>Loss</th></tr></thead>
-            <tbody id="episode-table"><tr><td colspan="7">Waiting for training data…</td></tr></tbody>
+            <thead><tr><th>Episode</th><th>Stage</th><th>Reward</th><th>Steps</th><th>Progress</th><th>Result</th><th>Epsilon</th><th>Loss</th></tr></thead>
+            <tbody id="episode-table"><tr><td colspan="8">Waiting for training data…</td></tr></tbody>
           </table>
         </div>
       </section>

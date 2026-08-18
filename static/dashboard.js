@@ -50,23 +50,26 @@ function updateMetrics(training) {
   document.getElementById('metric-success').textContent = `${formatNumber(last100.success_rate, 1)}%`;
   document.getElementById('metric-loss').textContent = formatNumber(latest.loss, 4);
   document.getElementById('metric-buffer').textContent = `Replay buffer ${formatNumber(latest.buffer_size, 0)}`;
-  document.getElementById('metric-termination').textContent = `${formatNumber(last100.collision_rate, 0)}% collision · ${formatNumber(last100.timeout_rate, 0)}% timeout`;
+  document.getElementById('metric-termination').textContent = `${formatNumber(last100.collision_rate, 0)}% collision · ${formatNumber(last100.stuck_rate, 0)}% stuck`;
   const trend = training.reward_trend_20;
   document.getElementById('metric-trend').textContent = trend === null ? 'Latest episode' : `${trend >= 0 ? '+' : ''}${formatNumber(trend)} vs previous 20`;
   const stale = training.csv_stale_seconds;
-  document.getElementById('metric-updated').textContent = stale === null ? 'CSV unavailable' : `CSV updated ${formatNumber(stale, 0)}s ago`;
+  document.getElementById('metric-updated').textContent = stale === null ? 'CSV unavailable' : `${latest.curriculum_stage} · stage episode ${formatNumber(latest.stage_episode, 0)} · ${formatNumber(stale, 0)}s ago`;
 
   const goal = last100.success_rate;
   const timeout = last100.timeout_rate;
   const collision = last100.collision_rate;
-  const other = Math.max(0, 100 - goal - timeout - collision);
+  const stuck = last100.stuck_rate;
+  const other = Math.max(0, 100 - goal - timeout - collision - stuck);
   document.getElementById('bar-goal').style.width = `${goal}%`;
   document.getElementById('bar-timeout').style.width = `${timeout}%`;
   document.getElementById('bar-collision').style.width = `${collision}%`;
+  document.getElementById('bar-stuck').style.width = `${stuck}%`;
   document.getElementById('bar-other').style.width = `${other}%`;
   document.getElementById('goal-rate').textContent = `${formatNumber(goal, 1)}%`;
   document.getElementById('timeout-rate').textContent = `${formatNumber(timeout, 1)}%`;
   document.getElementById('collision-rate').textContent = `${formatNumber(collision, 1)}%`;
+  document.getElementById('stuck-rate').textContent = `${formatNumber(stuck, 1)}%`;
   const forward = latest.action_forward_pct || 0;
   const left = latest.action_left_pct || 0;
   const right = latest.action_right_pct || 0;
@@ -142,17 +145,18 @@ function updateCharts(history) {
 
 function updateTable(rows) {
   const body = document.getElementById('episode-table');
-  if (!rows.length) { body.innerHTML = '<tr><td colspan="7">Waiting for training data…</td></tr>'; return; }
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="8">Waiting for training data…</td></tr>'; return; }
   body.replaceChildren(...rows.map(row => {
     const tr = document.createElement('tr');
     const values = [
-      formatNumber(row.episode, 0), formatNumber(row.reward), formatNumber(row.steps, 0),
+      formatNumber(row.episode, 0), `${row.curriculum_stage} / ${formatNumber(row.stage_episode, 0)}`,
+      formatNumber(row.reward), formatNumber(row.steps, 0),
       `${row.checkpoints_reached}/${row.checkpoint_count}`,
       row.reason.replaceAll('_', ' '), formatNumber(row.epsilon, 3), formatNumber(row.loss, 4)
     ];
     values.forEach((value, index) => {
       const cell = document.createElement('td');
-      if (index === 4) { const badge = document.createElement('span'); badge.className = `result ${row.reason}`; badge.textContent = value; cell.appendChild(badge); }
+      if (index === 5) { const badge = document.createElement('span'); badge.className = `result ${row.reason}`; badge.textContent = value; cell.appendChild(badge); }
       else cell.textContent = value;
       tr.appendChild(cell);
     });

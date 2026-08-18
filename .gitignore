@@ -8,6 +8,7 @@ venv/
 *.pt
 *.pth
 *.sh
+Train_command.txt
 .dashboard-*
 runs/
 models/

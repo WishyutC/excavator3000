@@ -155,6 +155,45 @@ class DQNTests(unittest.TestCase):
             )
         ))
 
+    def test_policy_transfer_keeps_new_stage_memory_and_counters_fresh(self):
+        config = small_training_config()
+        source = DQNAgent(10, 7, config)
+        source.environment_steps = 123
+        source.training_steps = 45
+        with torch.no_grad():
+            for parameter in source.online_network.parameters():
+                parameter.fill_(0.25)
+
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "source.pt"
+            source.save_checkpoint(checkpoint, episode=9)
+            target = DQNAgent(10, 7, config)
+            target.load_policy_weights(checkpoint)
+
+        self.assertEqual(target.environment_steps, 0)
+        self.assertEqual(target.training_steps, 0)
+        self.assertEqual(len(target.replay_buffer), 0)
+        self.assertTrue(all(
+            torch.equal(original, loaded)
+            for original, loaded in zip(
+                source.online_network.parameters(),
+                target.online_network.parameters()
+            )
+        ))
+
+    def test_expert_imitation_teaches_demonstrated_action(self):
+        config = small_training_config()
+        config["expert_imitation_weight"] = 1.0
+        config["learning_rate"] = 0.01
+        agent = DQNAgent(10, 3, config)
+        state = [0.0] * 10
+        for _ in range(20):
+            agent.remember(state, 2, 0.0, state, False, "running")
+        for _ in range(30):
+            agent.learn()
+
+        self.assertEqual(agent.select_action(state, evaluate=True), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

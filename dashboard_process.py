@@ -106,7 +106,8 @@ class TrainingProcessManager:
             process = subprocess.Popen(
                 [
                     str(self.webots_path), "--batch", "--mode=fast",
-                    "--no-rendering", str(self.world_path)
+                    "--no-rendering", "--stdout", "--stderr",
+                    str(self.world_path)
                 ],
                 cwd=self.project_root,
                 stdout=log_handle,

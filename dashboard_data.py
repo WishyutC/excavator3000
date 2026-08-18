@@ -36,6 +36,18 @@ class TrainingDataReader:
                             continue
                         parsed.append({
                             "episode": self._number(row, "episode", int),
+                            "stage_episode": self._number(
+                                row, "stage_episode", int
+                            ),
+                            "curriculum_stage": row.get(
+                                "curriculum_stage", "single"
+                            ),
+                            "curriculum_target_checkpoint": self._number(
+                                row,
+                                "curriculum_target_checkpoint",
+                                int,
+                                None
+                            ),
                             "steps": self._number(row, "steps", int),
                             "decisions": self._number(row, "decisions", int),
                             "reward": self._number(row, "total_reward", float),
@@ -85,7 +97,7 @@ class TrainingDataReader:
             return {
                 "count": 0, "average_reward": None, "best_reward": None,
                 "success_rate": 0.0, "collision_rate": 0.0,
-                "timeout_rate": 0.0, "reasons": {}
+                "timeout_rate": 0.0, "stuck_rate": 0.0, "reasons": {}
             }
         reasons = Counter(row["reason"] for row in rows)
         rewards = [row["reward"] for row in rows]
@@ -94,9 +106,10 @@ class TrainingDataReader:
             "count": count,
             "average_reward": sum(rewards) / count,
             "best_reward": max(rewards),
-            "success_rate": 100.0 * reasons["goal_reached"] / count,
+            "success_rate": 100.0 * sum(row["success"] for row in rows) / count,
             "collision_rate": 100.0 * reasons["collision"] / count,
             "timeout_rate": 100.0 * reasons["timeout"] / count,
+            "stuck_rate": 100.0 * reasons["stuck"] / count,
             "reasons": dict(reasons)
         }
 

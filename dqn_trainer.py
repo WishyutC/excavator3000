@@ -10,6 +10,9 @@ from training_logger import TrainingLogger
 @dataclass(frozen=True)
 class EpisodeSummary:
     episode: int
+    stage_episode: int
+    curriculum_stage: str
+    curriculum_target_checkpoint: int | None
     steps: int
     decisions: int
     total_reward: float
@@ -34,11 +37,19 @@ class EpisodeSummary:
 
 
 class DQNTrainer:
-    def __init__(self, environment, agent, training_config=None, logger=None):
+    def __init__(
+        self,
+        environment,
+        agent,
+        training_config=None,
+        logger=None,
+        episode_offset=0
+    ):
         self.environment = environment
         self.agent = agent
         self.config = training_config or CONFIG["training"]
         self.logger = logger or TrainingLogger()
+        self.episode_offset = int(episode_offset)
         self.best_success_reward = float("-inf")
         self.best_candidate_reward = float("-inf")
 
@@ -46,9 +57,11 @@ class DQNTrainer:
         episode_count = int(episodes or self.config["episodes"])
         summaries = []
 
-        for episode in range(int(start_episode) + 1, episode_count + 1):
+        for stage_episode in range(int(start_episode) + 1, episode_count + 1):
+            episode = self.episode_offset + stage_episode
             summary, simulation_stopped = self._run_episode(
                 episode,
+                stage_episode,
                 training=True
             )
             if simulation_stopped:
@@ -66,23 +79,25 @@ class DQNTrainer:
             )
         return summaries
 
-    def evaluate(self, episodes=None):
+    def evaluate(self, episodes=None, verbose=True):
         episode_count = int(episodes or CONFIG["evaluation"]["episodes"])
         summaries = []
 
         for episode in range(1, episode_count + 1):
             summary, simulation_stopped = self._run_episode(
                 episode,
+                episode,
                 training=False
             )
             if simulation_stopped:
                 break
             summaries.append(summary)
-            self._print_summary(summary, "EVAL")
+            if verbose:
+                self._print_summary(summary, "EVAL")
 
         return summaries
 
-    def _run_episode(self, episode, training):
+    def _run_episode(self, episode, stage_episode, training):
         state = self.environment.reset()
         total_reward = 0.0
         step = 0
@@ -96,13 +111,25 @@ class DQNTrainer:
         }
 
         while not done:
-            action = self.agent.select_action(state, evaluate=not training)
+            forced_action = self.config.get("forced_action")
+            expert_policy = self.config.get("expert_policy")
+            if training and forced_action is not None:
+                action = int(forced_action)
+            elif training and expert_policy == "waypoint":
+                action = self.environment.waypoint_expert_action()
+            elif training and expert_policy == "sensor":
+                action = self.environment.sensor_expert_action(state)
+            else:
+                action = self.agent.select_action(state, evaluate=not training)
+            if not 0 <= action < self.agent.action_size:
+                raise ValueError("forced_action is outside the policy action space.")
             action_counts[action] += 1
             next_state, reward, done, info = self.environment.step(action)
 
             if next_state is None:
                 return self._summary(
                     episode,
+                    stage_episode,
                     step,
                     total_reward,
                     info,
@@ -147,6 +174,7 @@ class DQNTrainer:
 
         return self._summary(
             episode,
+            stage_episode,
             step,
             total_reward,
             info,
@@ -158,6 +186,7 @@ class DQNTrainer:
     def _summary(
         self,
         episode,
+        stage_episode,
         decisions,
         total_reward,
         info,
@@ -178,6 +207,11 @@ class DQNTrainer:
 
         return EpisodeSummary(
             episode=episode,
+            stage_episode=stage_episode,
+            curriculum_stage=str(info.get("curriculum_stage", "single")),
+            curriculum_target_checkpoint=info.get(
+                "curriculum_target_checkpoint"
+            ),
             steps=physics_steps,
             decisions=decisions,
             total_reward=total_reward,
@@ -247,6 +281,7 @@ class DQNTrainer:
         loss = "warming up" if summary.loss is None else f"{summary.loss:.5f}"
         print(
             f"[{label}] episode {summary.episode} | "
+            f"stage {summary.curriculum_stage}:{summary.stage_episode} | "
             f"steps {summary.steps} | reward {summary.total_reward:+.3f} | "
             f"reason {summary.termination_reason} | "
             f"progress {summary.checkpoints_reached}/{summary.checkpoint_count} | "

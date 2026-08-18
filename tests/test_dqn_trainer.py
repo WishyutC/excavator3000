@@ -3,6 +3,8 @@ from pathlib import Path
 import tempfile
 import unittest
 
+import torch
+
 from config import CONFIG
 from dqn_agent import DQNAgent
 from dqn_trainer import DQNTrainer
@@ -23,6 +25,7 @@ class FakeEnvironment:
     def __init__(self, success=True):
         self.steps = 0
         self.hud_updates = []
+        self.actions = []
         self.success = success
 
     def reset(self):
@@ -30,6 +33,7 @@ class FakeEnvironment:
         return [0.0] * 10
 
     def step(self, action):
+        self.actions.append(action)
         self.steps += 1
         done = self.steps == 2
         info = {
@@ -42,6 +46,8 @@ class FakeEnvironment:
             "reward_breakdown": {},
             "goal_distance_m": 0.0 if done and self.success else 1.0,
             "episode_steps": self.steps,
+            "curriculum_stage": "stage_test",
+            "curriculum_target_checkpoint": 2,
             "progress": {
                 "progress_fraction": 1.0 if done else 0.5,
                 "checkpoints_reached": 2 if done else 1,
@@ -52,6 +58,12 @@ class FakeEnvironment:
 
     def update_hud(self, *values):
         self.hud_updates.append(values)
+
+    def waypoint_expert_action(self):
+        return 2
+
+    def sensor_expert_action(self, state):
+        return 1
 
 
 def trainer_config(directory):
@@ -105,6 +117,96 @@ class DQNTrainerTests(unittest.TestCase):
             )
             self.assertEqual(summaries[-1].steps, 2)
             self.assertEqual(summaries[-1].decisions, 2)
+            self.assertEqual(summaries[-1].stage_episode, 2)
+            self.assertEqual(summaries[-1].curriculum_stage, "stage_test")
+            self.assertEqual(
+                summaries[-1].curriculum_target_checkpoint,
+                2
+            )
+
+    def test_episode_offset_keeps_global_and_stage_episode_numbers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = trainer_config(directory)
+            environment = FakeEnvironment()
+            agent = DQNAgent(10, 3, config)
+            with torch.no_grad():
+                for parameter in agent.online_network.parameters():
+                    parameter.zero_()
+                agent.online_network.model[-1].bias[0] = 1.0
+            trainer = DQNTrainer(
+                environment,
+                agent,
+                config,
+                MemoryLogger(),
+                episode_offset=500
+            )
+
+            summary = trainer.train(episodes=1)[0]
+
+        self.assertEqual(summary.episode, 501)
+        self.assertEqual(summary.stage_episode, 1)
+
+    def test_forced_training_action_does_not_change_evaluation_policy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = trainer_config(directory)
+            config["forced_action"] = 1
+            environment = FakeEnvironment()
+            agent = DQNAgent(10, 3, config)
+            trainer = DQNTrainer(
+                environment, agent, config, MemoryLogger()
+            )
+
+            trainer.train(episodes=1)
+            training_actions = environment.actions.copy()
+            environment.actions.clear()
+            trainer.evaluate(episodes=1, verbose=False)
+
+        self.assertEqual(training_actions, [1, 1])
+        self.assertNotEqual(environment.actions, [1, 1])
+
+    def test_waypoint_expert_is_training_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = trainer_config(directory)
+            config["expert_policy"] = "waypoint"
+            environment = FakeEnvironment()
+            agent = DQNAgent(10, 3, config)
+            with torch.no_grad():
+                for parameter in agent.online_network.parameters():
+                    parameter.zero_()
+                agent.online_network.model[-1].bias[0] = 1.0
+            trainer = DQNTrainer(
+                environment, agent, config, MemoryLogger()
+            )
+
+            trainer.train(episodes=1)
+            training_actions = environment.actions.copy()
+            environment.actions.clear()
+            trainer.evaluate(episodes=1, verbose=False)
+
+        self.assertEqual(training_actions, [2, 2])
+        self.assertEqual(environment.actions, [0, 0])
+
+    def test_sensor_expert_is_training_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = trainer_config(directory)
+            config["expert_policy"] = "sensor"
+            environment = FakeEnvironment()
+            agent = DQNAgent(10, 3, config)
+            with torch.no_grad():
+                for parameter in agent.online_network.parameters():
+                    parameter.zero_()
+                agent.online_network.model[-1].bias[0] = 1.0
+            trainer = DQNTrainer(
+                environment, agent, config, MemoryLogger()
+            )
+
+            trainer.train(episodes=1)
+            training_actions = environment.actions.copy()
+            environment.actions.clear()
+            trainer.evaluate(episodes=1, verbose=False)
+
+        self.assertEqual(training_actions, [1, 1])
+        self.assertEqual(environment.actions, [0, 0])
 
     def test_failed_episode_saves_candidate_but_not_best(self):
         with tempfile.TemporaryDirectory() as directory:

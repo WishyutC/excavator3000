@@ -156,13 +156,22 @@ class DQNAgent:
             device=self.device
         )
 
-        selected_q = self.online_network(states).gather(1, actions).squeeze(1)
+        q_values = self.online_network(states)
+        selected_q = q_values.gather(1, actions).squeeze(1)
 
         with torch.no_grad():
             next_q = self._next_state_values(next_states)
             targets = rewards + self.config["gamma"] * (1.0 - dones) * next_q
 
         loss = self.loss_function(selected_q, targets)
+        imitation_weight = float(
+            self.config.get("expert_imitation_weight", 0.0)
+        )
+        if imitation_weight > 0.0:
+            loss = loss + imitation_weight * nn.functional.cross_entropy(
+                q_values,
+                actions.squeeze(1)
+            )
         self.optimizer.zero_grad(set_to_none=True)
         loss.backward()
         gradient_norm = torch.nn.utils.clip_grad_norm_(
@@ -241,4 +250,25 @@ class DQNAgent:
             self.optimizer.load_state_dict(checkpoint["optimizer"])
         self.environment_steps = int(checkpoint.get("environment_steps", 0))
         self.training_steps = int(checkpoint.get("training_steps", 0))
+        return checkpoint
+
+    def load_policy_weights(self, path):
+        """Transfer only learned policy weights into a fresh training stage."""
+
+        checkpoint = torch.load(
+            Path(path),
+            map_location=self.device,
+            weights_only=False
+        )
+        if checkpoint["state_size"] != self.state_size:
+            raise ValueError("Checkpoint state size does not match environment.")
+        if checkpoint["action_size"] != self.action_size:
+            raise ValueError("Checkpoint action size does not match environment.")
+        if tuple(checkpoint["hidden_sizes"]) != self.hidden_sizes:
+            raise ValueError("Checkpoint hidden sizes do not match configuration.")
+
+        self.online_network.load_state_dict(checkpoint["online_network"])
+        self.sync_target_network()
+        # Optimizer, replay memory, epsilon, and counters intentionally stay
+        # fresh so the new curriculum stage can adapt to its new objective.
         return checkpoint

@@ -16,6 +16,7 @@ class RewardResult:
     terminal: float = 0.0
     safe_motion: float = 0.0
     danger: float = 0.0
+    steering: float = 0.0
     time: float = 0.0
     stuck: float = 0.0
     progress: float = 0.0
@@ -71,6 +72,13 @@ class RewardCalculator:
             )
             return self._terminal_result(goal_reward)
 
+        if reason == TerminationReason.CURRICULUM_COMPLETE.value:
+            curriculum_reward = (
+                self.config["curriculum_goal_base"]
+                + self.config["curriculum_goal_time_bonus"] * (1.0 - progress)
+            )
+            return self._terminal_result(curriculum_reward)
+
         if reason == TerminationReason.SIMULATION_STOPPED.value:
             return self._terminal_result(0.0)
 
@@ -85,6 +93,7 @@ class RewardCalculator:
             clamp(observation[5], 0.0, 1.0)
         )
         forward_speed = clamp(observation[8], -1.0, 1.0)
+        turn_rate = abs(clamp(observation[9], -1.0, 1.0))
         positive_speed = max(0.0, forward_speed)
 
         safe_motion = (
@@ -96,6 +105,11 @@ class RewardCalculator:
             self.config["danger_penalty_scale"]
             * front_danger ** 2
             * (1.0 + positive_speed)
+        )
+        steering = -(
+            self.config["clear_space_steering_penalty_scale"]
+            * turn_rate
+            * (1.0 - front_danger)
         )
         time = -(
             self.config["time_penalty_start"]
@@ -111,6 +125,7 @@ class RewardCalculator:
         total = (
             safe_motion
             + danger
+            + steering
             + time
             + stuck
             + progress_component
@@ -121,6 +136,7 @@ class RewardCalculator:
             total=total,
             safe_motion=safe_motion,
             danger=danger,
+            steering=steering,
             time=time,
             stuck=stuck,
             progress=progress_component,
