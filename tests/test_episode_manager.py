@@ -1,3 +1,4 @@
+from copy import deepcopy
 import unittest
 
 from config import CONFIG
@@ -28,7 +29,13 @@ class FakeRobotController:
 
 class EpisodeManagerTests(unittest.TestCase):
     def create_manager(self, robot_position):
-        return EpisodeManager(FakeRobotController(robot_position))
+        environment = deepcopy(CONFIG["environment"])
+        environment["timeout_is_success"] = False
+        environment["goal"]["enabled"] = True
+        return EpisodeManager(
+            FakeRobotController(robot_position),
+            environment
+        )
 
     def test_running_outside_goal(self):
         status = self.create_manager((1.0, 0.0, 0.0)).evaluate(
@@ -64,6 +71,20 @@ class EpisodeManagerTests(unittest.TestCase):
         )
 
         self.assertEqual(status.reason, TerminationReason.TIMEOUT)
+
+    def test_survival_map_timeout_is_a_success(self):
+        environment = deepcopy(CONFIG["environment"])
+        environment["timeout_is_success"] = True
+        environment["goal"]["enabled"] = False
+        controller = FakeRobotController((1.0, 0.0, 0.0))
+        status = EpisodeManager(controller, environment).evaluate(
+            [0.0] * 8,
+            environment["max_steps"]
+        )
+
+        self.assertEqual(status.reason, TerminationReason.SURVIVAL_COMPLETE)
+        self.assertTrue(status.is_success)
+        self.assertTrue(status.to_info()["survival_complete"])
 
     def test_stuck_terminates_before_timeout(self):
         status = self.create_manager((1.0, 0.0, 0.0)).evaluate(

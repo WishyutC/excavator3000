@@ -12,6 +12,7 @@ class TrainingLogger:
         "stage_episode",
         "curriculum_stage",
         "curriculum_target_checkpoint",
+        "map_name",
         "steps",
         "decisions",
         "total_reward",

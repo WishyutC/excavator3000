@@ -35,6 +35,9 @@ class RewardCalculator:
 
         self.max_steps = environment_config["max_steps"]
         self.config = environment_config["reward"]
+        self.survival_mode = bool(
+            environment_config.get("timeout_is_success", False)
+        )
 
         if self.max_steps <= 0:
             raise ValueError("environment.max_steps must be greater than zero.")
@@ -79,6 +82,9 @@ class RewardCalculator:
             )
             return self._terminal_result(curriculum_reward)
 
+        if reason == TerminationReason.SURVIVAL_COMPLETE.value:
+            return self._terminal_result(self.config["survival_complete"])
+
         if reason == TerminationReason.SIMULATION_STOPPED.value:
             return self._terminal_result(0.0)
 
@@ -111,7 +117,10 @@ class RewardCalculator:
             * turn_rate
             * (1.0 - front_danger)
         )
-        time = -(
+        # A survival task must never make an early crash cheaper than lasting
+        # longer. Its terminal success and safe-motion signal replace the
+        # goal-track pressure to finish quickly.
+        time = 0.0 if self.survival_mode else -(
             self.config["time_penalty_start"]
             + self.config["time_penalty_growth"] * progress
         )

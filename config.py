@@ -53,9 +53,178 @@ CONFIG = {
         # steps; stuck detection still ends policies that stop progressing.
         "max_steps": 10_000,
         "collision_threshold": 3900,
-        # Keep the mapped start position until track-safe spawn zones are added.
+        # All layouts use the same RectangleArena in car_env_test_v2.wbt.
+        # "survival_mix" changes among three obstacle layouts every episode.
+        "map_selector": "survival_mix",
+        "maps": {
+            "survival_mix": {
+                "label": "Three-map survival mix",
+                "episode_type": "survival",
+                "goal_enabled": False,
+                "progress_enabled": False,
+                "random_start": True,
+                "random_heading": True,
+                "turn_macro_enabled": False,
+                # Training draws randomly; evaluation cycles in this order so
+                # every map receives the same number of benchmark episodes.
+                "map_pool": [
+                    "obstacle_field",
+                    "tight_corridors",
+                    "dense_pinch_points"
+                ],
+                "training_selection": "random",
+                "evaluation_selection": "round_robin",
+                "spawn_clearance_m": 0.12,
+                "spawn_attempts": 2000,
+                "obstacles": []
+            },
+            "race_track": {
+                "label": "Original goal track",
+                "episode_type": "goal",
+                "goal_enabled": True,
+                "progress_enabled": True,
+                "random_start": False,
+                "random_heading": False,
+                "turn_macro_enabled": True,
+                "spawn_clearance_m": 0.05,
+                "spawn_attempts": 500,
+                "obstacles": []
+            },
+            "obstacle_field": {
+                "label": "Random-shape survival field",
+                "episode_type": "survival",
+                "goal_enabled": False,
+                "progress_enabled": False,
+                "random_start": True,
+                "random_heading": True,
+                "turn_macro_enabled": False,
+                "spawn_clearance_m": 0.25,
+                "spawn_attempts": 1000,
+                # Mixed lengths, widths, and rotations create an open-ended
+                # avoidance field rather than another memorized race lane.
+                "obstacles": [
+                    {"center": [-3.25, 2.85], "size": [1.25, 0.55], "angle_rad": 0.35},
+                    {"center": [-1.05, 3.25], "size": [0.55, 1.55], "angle_rad": -0.45},
+                    {"center": [1.55, 3.10], "size": [1.65, 0.45], "angle_rad": 0.70},
+                    {"center": [3.45, 1.70], "size": [0.65, 1.40], "angle_rad": 0.15},
+                    {"center": [-3.45, 0.55], "size": [0.45, 1.70], "angle_rad": -0.25},
+                    {"center": [-0.65, 1.05], "size": [1.80, 0.40], "angle_rad": 0.25},
+                    {"center": [1.75, 0.65], "size": [0.55, 1.65], "angle_rad": -0.65},
+                    {"center": [-2.10, -1.35], "size": [1.55, 0.50], "angle_rad": -0.75},
+                    {"center": [0.25, -1.70], "size": [0.55, 1.80], "angle_rad": 0.40},
+                    {"center": [3.10, -1.45], "size": [1.35, 0.50], "angle_rad": -0.30},
+                    {"center": [-3.20, -3.25], "size": [0.75, 1.30], "angle_rad": 0.55},
+                    {"center": [-0.75, -3.55], "size": [1.50, 0.45], "angle_rad": 0.10},
+                    {"center": [2.35, -3.30], "size": [0.50, 1.45], "angle_rad": -0.50},
+                    # Four diagonal corner gates touch both arena walls, and
+                    # eight staggered wall teeth break the easy perimeter loop.
+                    {"center": [-4.35, 4.35], "size": [1.40, 0.50], "angle_rad": 0.7854, "color": [0.65, 0.18, 0.08]},
+                    {"center": [4.35, 4.35], "size": [1.40, 0.50], "angle_rad": -0.7854, "color": [0.65, 0.18, 0.08]},
+                    {"center": [-4.35, -4.35], "size": [1.40, 0.50], "angle_rad": -0.7854, "color": [0.65, 0.18, 0.08]},
+                    {"center": [4.35, -4.35], "size": [1.40, 0.50], "angle_rad": 0.7854, "color": [0.65, 0.18, 0.08]},
+                    {"center": [-2.35, 4.45], "size": [0.55, 1.50], "angle_rad": 0.0, "color": [0.75, 0.30, 0.08]},
+                    {"center": [2.25, 4.45], "size": [0.55, 1.50], "angle_rad": 0.0, "color": [0.75, 0.30, 0.08]},
+                    {"center": [-1.90, -4.45], "size": [0.55, 1.50], "angle_rad": 0.0, "color": [0.75, 0.30, 0.08]},
+                    {"center": [2.80, -4.45], "size": [0.55, 1.50], "angle_rad": 0.0, "color": [0.75, 0.30, 0.08]},
+                    {"center": [-4.45, -1.85], "size": [1.50, 0.55], "angle_rad": 0.0, "color": [0.75, 0.30, 0.08]},
+                    {"center": [-4.45, 2.00], "size": [1.50, 0.55], "angle_rad": 0.0, "color": [0.75, 0.30, 0.08]},
+                    {"center": [4.45, -2.20], "size": [1.50, 0.55], "angle_rad": 0.0, "color": [0.75, 0.30, 0.08]},
+                    {"center": [4.45, 1.50], "size": [1.50, 0.55], "angle_rad": 0.0, "color": [0.75, 0.30, 0.08]}
+                ]
+            },
+            "tight_corridors": {
+                "label": "Tight alternating corridors",
+                "episode_type": "survival",
+                "goal_enabled": False,
+                "progress_enabled": False,
+                "random_start": True,
+                "random_heading": True,
+                "turn_macro_enabled": False,
+                "spawn_clearance_m": 0.12,
+                "spawn_attempts": 2000,
+                # Long bars leave alternating end gates. The 1.15 m lanes are
+                # narrow relative to the 0.8 m sensor range but remain wide
+                # enough for the 25.5 x 14.5 cm vehicle to turn safely.
+                "obstacles": [
+                    {"center": [-0.60, 3.60], "size": [7.80, 0.45], "angle_rad": 0.0, "color": [0.10, 0.35, 0.62]},
+                    {"center": [0.60, 2.00], "size": [7.80, 0.45], "angle_rad": 0.0, "color": [0.10, 0.35, 0.62]},
+                    {"center": [-0.60, 0.40], "size": [7.80, 0.45], "angle_rad": 0.0, "color": [0.10, 0.35, 0.62]},
+                    {"center": [0.60, -1.20], "size": [7.80, 0.45], "angle_rad": 0.0, "color": [0.10, 0.35, 0.62]},
+                    {"center": [-0.60, -2.80], "size": [7.80, 0.45], "angle_rad": 0.0, "color": [0.10, 0.35, 0.62]},
+                    {"center": [-4.35, 4.35], "size": [1.35, 0.45], "angle_rad": 0.7854, "color": [0.08, 0.48, 0.72]},
+                    {"center": [4.35, 4.35], "size": [1.35, 0.45], "angle_rad": -0.7854, "color": [0.08, 0.48, 0.72]},
+                    {"center": [-4.35, -4.35], "size": [1.35, 0.45], "angle_rad": -0.7854, "color": [0.08, 0.48, 0.72]},
+                    {"center": [4.35, -4.35], "size": [1.35, 0.45], "angle_rad": 0.7854, "color": [0.08, 0.48, 0.72]}
+                ]
+            },
+            "dense_pinch_points": {
+                "label": "Dense staggered pinch points",
+                "episode_type": "survival",
+                "goal_enabled": False,
+                "progress_enabled": False,
+                "random_start": True,
+                "random_heading": True,
+                "turn_macro_enabled": False,
+                "spawn_clearance_m": 0.12,
+                "spawn_attempts": 3000,
+                # Staggered blocks form short sight lines, diagonal approaches,
+                # and repeated 0.7-1.0 m gaps without creating sealed rooms.
+                "obstacles": [
+                    {"center": [-3.55, 3.45], "size": [1.15, 0.95], "angle_rad": 0.20, "color": [0.42, 0.16, 0.58]},
+                    {"center": [-1.55, 3.55], "size": [1.00, 1.25], "angle_rad": -0.18, "color": [0.42, 0.16, 0.58]},
+                    {"center": [0.45, 3.35], "size": [1.20, 0.95], "angle_rad": 0.30, "color": [0.42, 0.16, 0.58]},
+                    {"center": [2.65, 3.55], "size": [1.05, 1.20], "angle_rad": -0.25, "color": [0.42, 0.16, 0.58]},
+                    {"center": [-2.55, 1.65], "size": [1.25, 1.00], "angle_rad": -0.30, "color": [0.52, 0.20, 0.66]},
+                    {"center": [-0.35, 1.55], "size": [1.00, 1.30], "angle_rad": 0.18, "color": [0.52, 0.20, 0.66]},
+                    {"center": [1.75, 1.65], "size": [1.30, 0.95], "angle_rad": -0.12, "color": [0.52, 0.20, 0.66]},
+                    {"center": [3.70, 1.40], "size": [0.85, 1.25], "angle_rad": 0.25, "color": [0.52, 0.20, 0.66]},
+                    {"center": [-3.65, -0.35], "size": [0.90, 1.30], "angle_rad": -0.18, "color": [0.60, 0.24, 0.62]},
+                    {"center": [-1.55, -0.25], "size": [1.30, 0.90], "angle_rad": 0.28, "color": [0.60, 0.24, 0.62]},
+                    {"center": [0.55, -0.45], "size": [1.00, 1.30], "angle_rad": -0.22, "color": [0.60, 0.24, 0.62]},
+                    {"center": [2.70, -0.25], "size": [1.25, 0.95], "angle_rad": 0.15, "color": [0.60, 0.24, 0.62]},
+                    {"center": [-2.65, -2.35], "size": [1.20, 1.00], "angle_rad": 0.22, "color": [0.48, 0.14, 0.52]},
+                    {"center": [-0.45, -2.25], "size": [1.00, 1.30], "angle_rad": -0.25, "color": [0.48, 0.14, 0.52]},
+                    {"center": [1.65, -2.45], "size": [1.30, 0.90], "angle_rad": 0.20, "color": [0.48, 0.14, 0.52]},
+                    {"center": [3.65, -2.30], "size": [0.85, 1.25], "angle_rad": -0.15, "color": [0.48, 0.14, 0.52]},
+                    {"center": [-3.55, -4.10], "size": [1.15, 0.70], "angle_rad": -0.12, "color": [0.35, 0.10, 0.46]},
+                    {"center": [-1.40, -4.00], "size": [1.00, 0.90], "angle_rad": 0.18, "color": [0.35, 0.10, 0.46]},
+                    {"center": [0.75, -4.10], "size": [1.20, 0.70], "angle_rad": -0.20, "color": [0.35, 0.10, 0.46]},
+                    {"center": [2.95, -4.00], "size": [1.00, 0.90], "angle_rad": 0.16, "color": [0.35, 0.10, 0.46]}
+                ]
+            },
+            "chessboard": {
+                "label": "Chessboard survival grid",
+                "episode_type": "survival",
+                "goal_enabled": False,
+                "progress_enabled": False,
+                "random_start": True,
+                "random_heading": True,
+                "turn_macro_enabled": False,
+                "spawn_clearance_m": 0.20,
+                "spawn_attempts": 1000,
+                # Alternating occupied squares leave several connected routes
+                # through the same 10 x 10 metre arena.
+                "obstacles": [
+                    {"center": [-3.20, -3.20], "size": [0.72, 0.72], "angle_rad": 0.0},
+                    {"center": [0.00, -3.20], "size": [0.72, 0.72], "angle_rad": 0.0},
+                    {"center": [3.20, -3.20], "size": [0.72, 0.72], "angle_rad": 0.0},
+                    {"center": [-1.60, -1.60], "size": [0.72, 0.72], "angle_rad": 0.0},
+                    {"center": [1.60, -1.60], "size": [0.72, 0.72], "angle_rad": 0.0},
+                    {"center": [-3.20, 0.00], "size": [0.72, 0.72], "angle_rad": 0.0},
+                    {"center": [0.00, 0.00], "size": [0.72, 0.72], "angle_rad": 0.0},
+                    {"center": [3.20, 0.00], "size": [0.72, 0.72], "angle_rad": 0.0},
+                    {"center": [-1.60, 1.60], "size": [0.72, 0.72], "angle_rad": 0.0},
+                    {"center": [1.60, 1.60], "size": [0.72, 0.72], "angle_rad": 0.0},
+                    {"center": [-3.20, 3.20], "size": [0.72, 0.72], "angle_rad": 0.0},
+                    {"center": [0.00, 3.20], "size": [0.72, 0.72], "angle_rad": 0.0},
+                    {"center": [3.20, 3.20], "size": [0.72, 0.72], "angle_rad": 0.0}
+                ]
+            }
+        },
+        # These effective values are set from the selected map profile below.
         "random_start": False,
         "random_heading": False,
+        "timeout_is_success": False,
         # car_env_test_v2.wbt uses RectangleArena floorSize 10 10.
         "arena_size_m": {
             "x": 10.0,
@@ -77,6 +246,7 @@ CONFIG = {
             "timeout": -100.0,
             "goal_base": 100.0,
             "goal_time_bonus": 50.0,
+            "survival_complete": 100.0,
             "curriculum_goal_base": 80.0,
             "curriculum_goal_time_bonus": 40.0,
             "safe_motion_scale": 0.01,
@@ -124,6 +294,7 @@ CONFIG = {
         # Disable this during high-speed training to remove GUI overhead.
         "enabled": True,
         "enabled_in_training": False,
+        "enabled_in_evaluation": False,
         "auto_launch": True,
         "host": "127.0.0.1",
         "port": 8765,
@@ -140,7 +311,7 @@ CONFIG = {
     "logging": {
         "enabled": True,
         "format": "csv",
-        "directory": "runs/curriculum_v4_macro_final"
+        "directory": "runs/survival_mix_v4_baseline_eval_300"
     },
 
     "training": {
@@ -189,7 +360,9 @@ CONFIG = {
         "train_every_steps": 4,
         "gradient_clip_norm": 10.0,
         "target_update_steps": 1000,
-        "save_directory": "models/curriculum_v4_macro_final",
+        # Reserved for the later obstacle transfer-training run. Evaluation
+        # loads the race checkpoint below and never writes model weights.
+        "save_directory": "models/obstacle_transfer_v4_2000",
         "checkpoint_name": "dqn_latest.pt",
         "best_checkpoint_name": "dqn_best.pt",
         "candidate_checkpoint_name": "dqn_candidate.pt",
@@ -301,10 +474,12 @@ CONFIG = {
     },
 
     "evaluation": {
-        "episodes": 50,
+        "episodes": 300,
+        "log_episodes": True,
+        "summary_name": "evaluation_summary.json",
         "checkpoint": (
             "models/curriculum_v4_macro_final/"
-            "stage_08_goal/dqn_latest.pt"
+            "stage_08_goal/dqn_best.pt"
         ),
         "curriculum_target_checkpoint": None
     },
@@ -323,3 +498,51 @@ if os.environ.get("RL_PROGRAM_MODE"):
     CONFIG["program"]["mode"] = os.environ["RL_PROGRAM_MODE"].lower()
 if os.environ.get("RL_TRAINING_EPISODES"):
     CONFIG["training"]["episodes"] = int(os.environ["RL_TRAINING_EPISODES"])
+if os.environ.get("RL_EVALUATION_EPISODES"):
+    CONFIG["evaluation"]["episodes"] = int(
+        os.environ["RL_EVALUATION_EPISODES"]
+    )
+if os.environ.get("RL_LOGGING_DIRECTORY"):
+    CONFIG["logging"]["directory"] = os.environ["RL_LOGGING_DIRECTORY"]
+if os.environ.get("RL_MAP_SELECTOR"):
+    CONFIG["environment"]["map_selector"] = os.environ[
+        "RL_MAP_SELECTOR"
+    ].lower()
+
+
+def _apply_selected_map_profile():
+    environment = CONFIG["environment"]
+    selected = environment["map_selector"]
+    maps = environment["maps"]
+    if selected not in maps:
+        available = ", ".join(sorted(maps))
+        raise ValueError(
+            f'Unknown environment.map_selector "{selected}". '
+            f"Available maps: {available}."
+        )
+
+    profile = maps[selected]
+    episode_type = profile.get("episode_type", "goal")
+    environment["random_start"] = bool(profile.get("random_start", False))
+    environment["random_heading"] = bool(
+        profile.get("random_heading", False)
+    )
+    environment["respawn_wall_clearance_m"] = float(
+        profile.get(
+            "spawn_clearance_m",
+            environment["respawn_wall_clearance_m"]
+        )
+    )
+    environment["goal"]["enabled"] = bool(
+        profile.get("goal_enabled", episode_type == "goal")
+    )
+    environment["progress"]["enabled"] = bool(
+        profile.get("progress_enabled", episode_type == "goal")
+    )
+    environment["timeout_is_success"] = episode_type == "survival"
+    CONFIG["training"]["turn_macro"]["enabled"] = bool(
+        profile.get("turn_macro_enabled", False)
+    )
+
+
+_apply_selected_map_profile()

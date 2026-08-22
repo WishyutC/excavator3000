@@ -49,6 +49,22 @@ SAMPLE_CONFIG = '''CONFIG = {
 
 
 class DashboardConfigTests(unittest.TestCase):
+    def test_dashboard_can_select_a_survival_map(self):
+        project_config = Path(__file__).resolve().parents[1] / "config.py"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.py"
+            path.write_text(
+                project_config.read_text(encoding="utf-8"),
+                encoding="utf-8"
+            )
+
+            update_config(path, {"environment.map_selector": "chessboard"})
+
+            self.assertEqual(
+                read_config(path)["environment"]["map_selector"],
+                "chessboard"
+            )
+
     def test_selected_values_are_updated_without_reformatting_file(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.py"

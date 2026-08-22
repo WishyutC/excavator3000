@@ -313,7 +313,11 @@ class AgentHUD:
             748,
             92,
             anchor="w",
-            text=f"AGENT STATE / {mode}{buffer_text}",
+            text=(
+                f'AGENT STATE / {mode} / '
+                f'{self.latest.get("map", "race_track").upper()}'
+                f'{buffer_text}'
+            ),
             fill=MUTED,
             font=("Segoe UI", 11, "bold")
         )
@@ -326,6 +330,7 @@ class AgentHUD:
         )
         status_color = {
             "goal_reached": "#35df76",
+            "survival_complete": "#35df76",
             "collision": "#ff3b3b",
             "timeout": "#ffd166",
             "simulation_stopped": MUTED

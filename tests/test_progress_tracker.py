@@ -24,6 +24,17 @@ def progress_config():
 
 
 class ProgressTrackerTests(unittest.TestCase):
+    def test_disabled_progress_has_no_track_checkpoints(self):
+        environment = progress_config()
+        environment["progress"]["enabled"] = False
+        tracker = ProgressTracker(environment)
+
+        update = tracker.reset((0.0, 0.0, 0.0))
+
+        self.assertEqual(update.checkpoint_count, 0)
+        self.assertEqual(update.progress_fraction, 0.0)
+        self.assertFalse(tracker.is_stuck(10_000))
+
     def test_distance_progress_and_ordered_checkpoint_reward(self):
         tracker = ProgressTracker(progress_config())
         tracker.reset((0.0, 0.0, 0.0))

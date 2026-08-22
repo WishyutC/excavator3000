@@ -1,3 +1,4 @@
+from copy import deepcopy
 import unittest
 
 from config import CONFIG
@@ -7,7 +8,9 @@ from reward_calculator import RewardCalculator
 
 class RewardCalculatorTests(unittest.TestCase):
     def setUp(self):
-        self.calculator = RewardCalculator()
+        environment = deepcopy(CONFIG["environment"])
+        environment["timeout_is_success"] = False
+        self.calculator = RewardCalculator(environment)
         self.clear_observation = [0.0] * 10
 
     def test_goal_reward_decays_from_150_to_100(self):
@@ -61,6 +64,31 @@ class RewardCalculatorTests(unittest.TestCase):
             reward_config["curriculum_goal_base"]
             + reward_config["curriculum_goal_time_bonus"]
         )
+
+    def test_survival_completion_has_explicit_success_reward(self):
+        reward = self.calculator.calculate(
+            [],
+            TerminationReason.SURVIVAL_COMPLETE,
+            CONFIG["environment"]["max_steps"]
+        )
+
+        self.assertEqual(
+            reward.total,
+            CONFIG["environment"]["reward"]["survival_complete"]
+        )
+
+    def test_survival_mode_does_not_reward_an_early_crash_via_time_cost(self):
+        environment = deepcopy(CONFIG["environment"])
+        environment["timeout_is_success"] = True
+        calculator = RewardCalculator(environment)
+        waiting = calculator.calculate(
+            self.clear_observation,
+            TerminationReason.RUNNING,
+            environment["max_steps"]
+        )
+
+        self.assertEqual(waiting.time, 0.0)
+        self.assertLess(waiting.stuck, 0.0)
 
     def test_waiting_is_always_negative(self):
         reward = self.calculator.calculate(

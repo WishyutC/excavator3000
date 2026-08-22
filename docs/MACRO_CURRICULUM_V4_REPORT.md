@@ -3,8 +3,8 @@
 ## Outcome
 
 The compact DQN now completes the Webots track and reaches the actual `GOAL`
-node. The final policy passed 50 out of 50 greedy goal evaluations without the
-training expert.
+node. A fresh Webots process verified the deployable best checkpoint in 10 out
+of 10 goal evaluations without the training expert.
 
 This is one shared neural network. The curriculum checkpoints are progressive
 training targets and saved snapshots, not separate models. Each stage transfers
@@ -68,9 +68,16 @@ goal stage scored 25/50 at episode 100 and passed 50/50 at episode 200. These
 results show why periodic policy-only gates are necessary: successful expert
 demonstrations alone do not prove that the DQN learned the behavior.
 
+An independent evaluation then found that `dqn_latest.pt` had catastrophically
+forgotten the first left turn despite the in-process result. It collided after
+checkpoint 1 in every observed episode. The preserved `dqn_best.pt` passed a
+fresh-process 10/10 goal audit. Checkpoint promotion was therefore changed to
+reload and evaluate both saved candidates and select the stronger deployable
+artifact.
+
 ## Final artifacts
 
-- Final policy: `models/curriculum_v4_macro_final/stage_08_goal/dqn_latest.pt`
+- Final policy: `models/curriculum_v4_macro_final/stage_08_goal/dqn_best.pt`
 - Final summary: `runs/curriculum_v4_macro_final/curriculum_summary.json`
 - Clean stage 6-8 training log: `runs/curriculum_v4_macro_final/training.csv`
 - Preserved failed stage-5 experiment:
@@ -79,6 +86,10 @@ demonstrations alone do not prove that the DQN learned the behavior.
 The default program mode is now `evaluate`, pointed at the final goal policy,
 so opening the world tests the completed policy instead of accidentally
 starting another training run.
+
+Curriculum promotion now performs a disk-reload gate for both `latest` and
+`best`. A stage transfers the candidate with the higher reloaded success rate
+and mean reward, preventing a degraded latest checkpoint from being deployed.
 
 ## Scope of the result
 

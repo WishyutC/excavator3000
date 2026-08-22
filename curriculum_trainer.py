@@ -67,6 +67,46 @@ def _last_logged_episode(path):
     return last
 
 
+def _evaluate_saved_candidates(agent, trainer, stage_config, episodes):
+    """Reload deployment candidates and select the strongest saved policy."""
+
+    directory = Path(stage_config["save_directory"])
+    names = (
+        stage_config["checkpoint_name"],
+        stage_config["best_checkpoint_name"]
+    )
+    checks = []
+    selected_path = None
+    selected_summaries = []
+    selected_score = (-1.0, float("-inf"))
+
+    for name in dict.fromkeys(names):
+        path = directory / name
+        if not path.exists():
+            continue
+        agent.load_checkpoint(path, load_optimizer=False)
+        summaries = trainer.evaluate(episodes, verbose=False)
+        rate = _success_rate(summaries)
+        mean_reward = _mean(summaries, "total_reward")
+        checks.append({
+            "checkpoint": str(path),
+            "evaluation_episodes": len(summaries),
+            "success_rate": rate,
+            "mean_reward": mean_reward,
+            "mean_progress": _mean(summaries, "track_progress")
+        })
+        score = (rate, mean_reward)
+        if score > selected_score:
+            selected_path = path
+            selected_summaries = summaries
+            selected_score = score
+
+    if selected_path is None:
+        raise RuntimeError("No saved curriculum checkpoint was found.")
+    agent.load_checkpoint(selected_path, load_optimizer=False)
+    return selected_path, selected_summaries, checks
+
+
 def run_staged_curriculum(environment, training_config=None):
     """Train and greedily validate every configured curriculum stage."""
 
@@ -236,20 +276,15 @@ def run_staged_curriculum(environment, training_config=None):
         # A single fast success can occur during early random exploration, so
         # the per-episode reward "best" checkpoint is not a reliable stage
         # selection criterion.
-        stage_checkpoint = (
-            Path(stage_config["save_directory"])
-            / stage_config["checkpoint_name"]
-        )
-        if (
-            stage_checkpoint.exists()
-            and evaluation_at_episode != trained
-        ):
-            agent.load_checkpoint(stage_checkpoint, load_optimizer=False)
-            evaluation_summaries = trainer.evaluate(
-                evaluation_episodes,
-                verbose=False
+        stage_checkpoint, evaluation_summaries, deployment_checks = (
+            _evaluate_saved_candidates(
+                agent,
+                trainer,
+                stage_config,
+                evaluation_episodes
             )
-            evaluation_rate = _success_rate(evaluation_summaries)
+        )
+        evaluation_rate = _success_rate(evaluation_summaries)
 
         stage_result = {
             "index": stage_index,
@@ -269,6 +304,7 @@ def run_staged_curriculum(environment, training_config=None):
                 "track_progress"
             ),
             "greedy_checks": greedy_checks,
+            "deployment_checks": deployment_checks,
             "stage_checkpoint": str(stage_checkpoint),
             "passed": (
                 len(evaluation_summaries) == evaluation_episodes

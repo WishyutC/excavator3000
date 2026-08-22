@@ -42,6 +42,7 @@ class TrainingDataReader:
                             "curriculum_stage": row.get(
                                 "curriculum_stage", "single"
                             ),
+                            "map_name": row.get("map_name", "unknown"),
                             "curriculum_target_checkpoint": self._number(
                                 row,
                                 "curriculum_target_checkpoint",

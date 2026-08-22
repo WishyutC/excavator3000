@@ -54,7 +54,7 @@ function updateMetrics(training) {
   const trend = training.reward_trend_20;
   document.getElementById('metric-trend').textContent = trend === null ? 'Latest episode' : `${trend >= 0 ? '+' : ''}${formatNumber(trend)} vs previous 20`;
   const stale = training.csv_stale_seconds;
-  document.getElementById('metric-updated').textContent = stale === null ? 'CSV unavailable' : `${latest.curriculum_stage} · stage episode ${formatNumber(latest.stage_episode, 0)} · ${formatNumber(stale, 0)}s ago`;
+  document.getElementById('metric-updated').textContent = stale === null ? 'CSV unavailable' : `${latest.map_name} · ${latest.curriculum_stage} · episode ${formatNumber(latest.stage_episode, 0)} · ${formatNumber(stale, 0)}s ago`;
 
   const goal = last100.success_rate;
   const timeout = last100.timeout_rate;
@@ -145,18 +145,19 @@ function updateCharts(history) {
 
 function updateTable(rows) {
   const body = document.getElementById('episode-table');
-  if (!rows.length) { body.innerHTML = '<tr><td colspan="8">Waiting for training data…</td></tr>'; return; }
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="9">Waiting for training data…</td></tr>'; return; }
   body.replaceChildren(...rows.map(row => {
     const tr = document.createElement('tr');
     const values = [
-      formatNumber(row.episode, 0), `${row.curriculum_stage} / ${formatNumber(row.stage_episode, 0)}`,
+      formatNumber(row.episode, 0), row.map_name,
+      `${row.curriculum_stage} / ${formatNumber(row.stage_episode, 0)}`,
       formatNumber(row.reward), formatNumber(row.steps, 0),
       `${row.checkpoints_reached}/${row.checkpoint_count}`,
       row.reason.replaceAll('_', ' '), formatNumber(row.epsilon, 3), formatNumber(row.loss, 4)
     ];
     values.forEach((value, index) => {
       const cell = document.createElement('td');
-      if (index === 5) { const badge = document.createElement('span'); badge.className = `result ${row.reason}`; badge.textContent = value; cell.appendChild(badge); }
+      if (index === 6) { const badge = document.createElement('span'); badge.className = `result ${row.reason}`; badge.textContent = value; cell.appendChild(badge); }
       else cell.textContent = value;
       tr.appendChild(cell);
     });

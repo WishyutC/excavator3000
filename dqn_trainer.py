@@ -13,6 +13,7 @@ class EpisodeSummary:
     stage_episode: int
     curriculum_stage: str
     curriculum_target_checkpoint: int | None
+    map_name: str
     steps: int
     decisions: int
     total_reward: float
@@ -79,7 +80,7 @@ class DQNTrainer:
             )
         return summaries
 
-    def evaluate(self, episodes=None, verbose=True):
+    def evaluate(self, episodes=None, verbose=True, log_episodes=False):
         episode_count = int(episodes or CONFIG["evaluation"]["episodes"])
         summaries = []
 
@@ -92,6 +93,8 @@ class DQNTrainer:
             if simulation_stopped:
                 break
             summaries.append(summary)
+            if log_episodes:
+                self.logger.log_episode(summary.to_dict())
             if verbose:
                 self._print_summary(summary, "EVAL")
 
@@ -212,6 +215,7 @@ class DQNTrainer:
             curriculum_target_checkpoint=info.get(
                 "curriculum_target_checkpoint"
             ),
+            map_name=str(getattr(self.environment, "map_name", "unknown")),
             steps=physics_steps,
             decisions=decisions,
             total_reward=total_reward,

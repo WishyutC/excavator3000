@@ -156,7 +156,9 @@ def run_training(environment):
 
 
 def run_evaluation(environment):
+    from collections import Counter
     from dqn_trainer import DQNTrainer
+    from training_logger import TrainingLogger
 
     evaluation_config = CONFIG["evaluation"]
     target_checkpoint = evaluation_config.get("curriculum_target_checkpoint")
@@ -171,8 +173,13 @@ def run_evaluation(environment):
 
     agent = create_agent(environment)
     agent.load_checkpoint(checkpoint, load_optimizer=False)
-    trainer = DQNTrainer(environment, agent)
-    summaries = trainer.evaluate(evaluation_config["episodes"])
+    evaluation_directory = Path(CONFIG["logging"]["directory"])
+    logger = TrainingLogger(path=evaluation_directory)
+    trainer = DQNTrainer(environment, agent, logger=logger)
+    summaries = trainer.evaluate(
+        evaluation_config["episodes"],
+        log_episodes=bool(evaluation_config.get("log_episodes", False))
+    )
 
     if summaries:
         successes = sum(summary.success for summary in summaries)
@@ -183,6 +190,54 @@ def run_evaluation(environment):
             f"Evaluation complete | success {successes}/{len(summaries)} | "
             f"average reward {average_reward:+.3f}"
         )
+        reason_counts = Counter(
+            summary.termination_reason for summary in summaries
+        )
+        per_map = {}
+        for map_name in sorted({summary.map_name for summary in summaries}):
+            map_summaries = [
+                summary for summary in summaries
+                if summary.map_name == map_name
+            ]
+            map_successes = sum(summary.success for summary in map_summaries)
+            per_map[map_name] = {
+                "episodes": len(map_summaries),
+                "successes": map_successes,
+                "success_rate": map_successes / len(map_summaries),
+                "average_reward": sum(
+                    summary.total_reward for summary in map_summaries
+                ) / len(map_summaries),
+                "average_steps": sum(
+                    summary.steps for summary in map_summaries
+                ) / len(map_summaries),
+                "termination_reasons": dict(Counter(
+                    summary.termination_reason
+                    for summary in map_summaries
+                ))
+            }
+        payload = {
+            "map_selector": CONFIG["environment"]["map_selector"],
+            "checkpoint": str(checkpoint),
+            "requested_episodes": int(evaluation_config["episodes"]),
+            "completed_episodes": len(summaries),
+            "successes": successes,
+            "success_rate": successes / len(summaries),
+            "average_reward": average_reward,
+            "average_steps": sum(
+                summary.steps for summary in summaries
+            ) / len(summaries),
+            "termination_reasons": dict(reason_counts),
+            "maps": per_map
+        }
+        summary_path = evaluation_directory / evaluation_config.get(
+            "summary_name", "evaluation_summary.json"
+        )
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(
+            json.dumps(payload, indent=2, allow_nan=False),
+            encoding="utf-8"
+        )
+        print(f"Evaluation report: {summary_path}")
 
 
 def main():

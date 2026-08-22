@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import unittest
 import math
 
+from config import CONFIG
 from environment import RCEnvironment
 
 
@@ -137,6 +138,12 @@ class FakeProgressTracker:
 
 
 class EnvironmentTests(unittest.TestCase):
+    def setUp(self):
+        turn_macro = CONFIG["training"]["turn_macro"]
+        previous = turn_macro["enabled"]
+        turn_macro["enabled"] = True
+        self.addCleanup(turn_macro.__setitem__, "enabled", previous)
+
     def create_environment(self, done_at=None):
         robot = FakeRobot()
         manager = FakeEpisodeManager(done_at)

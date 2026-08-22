@@ -524,3 +524,8 @@ class RCEnvironment:
     def state_size(self):
 
         return CONFIG["observation"]["sensor_count"] + 2
+
+    @property
+    def map_name(self):
+        manager = getattr(self.robot, "map_manager", None)
+        return getattr(manager, "map_name", CONFIG["environment"]["map_selector"])

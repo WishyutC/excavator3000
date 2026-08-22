@@ -21,6 +21,7 @@ class MemoryLogger:
 class FakeEnvironment:
     state_size = 10
     action_size = 3
+    map_name = "test_map"
 
     def __init__(self, success=True):
         self.steps = 0
@@ -123,6 +124,7 @@ class DQNTrainerTests(unittest.TestCase):
                 summaries[-1].curriculum_target_checkpoint,
                 2
             )
+            self.assertEqual(summaries[-1].map_name, "test_map")
 
     def test_episode_offset_keeps_global_and_stage_episode_numbers(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -237,6 +239,24 @@ class DQNTrainerTests(unittest.TestCase):
         self.assertEqual(len(summaries), 2)
         self.assertEqual(len(agent.replay_buffer), 0)
         self.assertEqual(agent.training_steps, 0)
+
+    def test_evaluation_can_stream_episode_rows_for_live_reporting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = trainer_config(directory)
+            environment = FakeEnvironment()
+            agent = DQNAgent(10, 3, config)
+            logger = MemoryLogger()
+            trainer = DQNTrainer(environment, agent, config, logger)
+
+            summaries = trainer.evaluate(
+                episodes=2,
+                verbose=False,
+                log_episodes=True
+            )
+
+        self.assertEqual(len(summaries), 2)
+        self.assertEqual(len(logger.rows), 2)
+        self.assertEqual(logger.rows[-1]["termination_reason"], "goal_reached")
 
 
 if __name__ == "__main__":

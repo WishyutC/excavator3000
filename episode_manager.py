@@ -13,6 +13,7 @@ class TerminationReason(str, Enum):
     COLLISION = "collision"
     GOAL_REACHED = "goal_reached"
     CURRICULUM_COMPLETE = "curriculum_complete"
+    SURVIVAL_COMPLETE = "survival_complete"
     TIMEOUT = "timeout"
     STUCK = "stuck"
     SIMULATION_STOPPED = "simulation_stopped"
@@ -36,7 +37,8 @@ class EpisodeStatus:
     def is_success(self):
         return self.reason in {
             TerminationReason.GOAL_REACHED,
-            TerminationReason.CURRICULUM_COMPLETE
+            TerminationReason.CURRICULUM_COMPLETE,
+            TerminationReason.SURVIVAL_COMPLETE
         }
 
     def to_info(self):
@@ -46,6 +48,9 @@ class EpisodeStatus:
             "goal_reached": self.reason == TerminationReason.GOAL_REACHED,
             "curriculum_complete": (
                 self.reason == TerminationReason.CURRICULUM_COMPLETE
+            ),
+            "survival_complete": (
+                self.reason == TerminationReason.SURVIVAL_COMPLETE
             ),
             "goal_distance_m": self.goal_distance_m,
             "goal_center_distance_m": self.goal_center_distance_m
@@ -94,10 +99,13 @@ class GoalDetector:
 class EpisodeManager:
     """Evaluate collision, success, and timeout with deterministic priority."""
 
-    def __init__(self, robot_controller):
-        environment_config = CONFIG["environment"]
+    def __init__(self, robot_controller, environment_config=None):
+        environment_config = environment_config or CONFIG["environment"]
         self.collision_threshold = environment_config["collision_threshold"]
         self.max_steps = environment_config["max_steps"]
+        self.timeout_is_success = bool(
+            environment_config.get("timeout_is_success", False)
+        )
 
         goal_config = environment_config["goal"]
         self.goal_detector = None
@@ -143,7 +151,11 @@ class EpisodeManager:
         elif stuck:
             reason = TerminationReason.STUCK
         elif step_count >= self.max_steps:
-            reason = TerminationReason.TIMEOUT
+            reason = (
+                TerminationReason.SURVIVAL_COMPLETE
+                if self.timeout_is_success
+                else TerminationReason.TIMEOUT
+            )
         else:
             reason = TerminationReason.RUNNING
 

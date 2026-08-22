@@ -110,7 +110,7 @@ class ProgressTracker:
 
     def snapshot(self, distance_reward=0.0, checkpoint_reward=0.0, made_progress=False):
         target_distance = self.previous_distance
-        checkpoint_count = len(self.waypoints)
+        checkpoint_count = len(self.waypoints) if self.enabled else 0
         fraction = (
             self.current_index / checkpoint_count
             if checkpoint_count

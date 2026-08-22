@@ -18,6 +18,14 @@ FIELDS = {
         "label": "Maximum episode steps", "type": "int",
         "minimum": 100, "maximum": 50_000, "group": "Environment"
     },
+    "environment.map_selector": {
+        "label": "World layout", "type": "select",
+        "choices": [
+            "survival_mix", "race_track", "obstacle_field",
+            "tight_corridors", "dense_pinch_points", "chessboard"
+        ],
+        "group": "Environment"
+    },
     "environment.collision_threshold": {
         "label": "Collision sensor threshold", "type": "int",
         "minimum": 1, "maximum": 10_000, "group": "Environment"
@@ -49,6 +57,11 @@ FIELDS = {
     },
     "environment.reward.goal_time_bonus": {
         "label": "Goal time bonus", "type": "float",
+        "minimum": 0.0, "maximum": 1_000.0, "step": 1.0,
+        "group": "Rewards"
+    },
+    "environment.reward.survival_complete": {
+        "label": "Survival completion reward", "type": "float",
         "minimum": 0.0, "maximum": 1_000.0, "step": 1.0,
         "group": "Rewards"
     },

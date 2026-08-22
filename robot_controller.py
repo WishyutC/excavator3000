@@ -8,6 +8,7 @@ import socket
 import subprocess
 import sys
 from observation import build_observation
+from map_manager import MapManager
 
 TIME_STEP = CONFIG["simulation"]["time_step_ms"]
 COLLISION_THRESHOLD = CONFIG["environment"]["collision_threshold"]
@@ -98,6 +99,9 @@ class RobotController:
                 right_ratio * self.drive_speed
             )
 
+        self.map_manager = MapManager(self.robot)
+        self.map_manager.activate()
+
         # Discrete actions expressed as ratios of the safe drive speed.
         self.action_table = {
             0: wheel_speeds("forward"),
@@ -122,11 +126,19 @@ class RobotController:
         self.hud_socket = None
         self.hud_process = None
         self.hud_update_count = 0
+        program_mode = CONFIG["program"]["mode"]
         self.observer_enabled = (
             OBSERVER_CONFIG["enabled"]
             and (
-                CONFIG["program"]["mode"] not in {"train", "diagnostic"}
-                or OBSERVER_CONFIG["enabled_in_training"]
+                program_mode == "test"
+                or (
+                    program_mode == "train"
+                    and OBSERVER_CONFIG["enabled_in_training"]
+                )
+                or (
+                    program_mode == "evaluate"
+                    and OBSERVER_CONFIG["enabled_in_evaluation"]
+                )
             )
         )
 
@@ -317,6 +329,7 @@ class RobotController:
 
         packet = {
             "type": "telemetry",
+            "map": self.map_manager.map_name,
             "episode": episode,
             "step": step,
             "action": action,
@@ -369,45 +382,18 @@ class RobotController:
     def reset(self):
 
         self.stop()
-
-        if CONFIG["environment"]["random_heading"]:
-            angle = random.uniform(-math.pi, math.pi)
-        else:
-            angle = 0.0
+        self.map_manager.prepare_episode()
 
         if CONFIG["environment"]["random_start"]:
-            robot = CONFIG["robot"]
-            environment = CONFIG["environment"]
-            arena = environment["arena_size_m"]
-            clearance = environment["respawn_wall_clearance_m"]
-
-            half_length = robot["length_m"] / 2.0
-            half_width = robot["width_m"] / 2.0
-
-            # Axis-aligned extents of the rotated rectangular footprint.
-            extent_x = (
-                abs(math.cos(angle)) * half_length
-                + abs(math.sin(angle)) * half_width
-            )
-            extent_y = (
-                abs(math.sin(angle)) * half_length
-                + abs(math.cos(angle)) * half_width
-            )
-
-            x_limit = arena["x"] / 2.0 - extent_x - clearance
-            y_limit = arena["y"] / 2.0 - extent_y - clearance
-
-            if x_limit <= 0.0 or y_limit <= 0.0:
-                raise ValueError(
-                    "Arena is too small for the configured robot dimensions "
-                    "and respawn clearance."
-                )
-
-            x = random.uniform(-x_limit, x_limit)
-            y = random.uniform(-y_limit, y_limit)
+            x, y, angle = self.map_manager.random_spawn_pose()
         else:
             x = self.start_position[0]
             y = self.start_position[1]
+            angle = (
+                random.uniform(-math.pi, math.pi)
+                if CONFIG["environment"]["random_heading"]
+                else 0.0
+            )
 
         self.translation.setSFVec3f([
             x,
