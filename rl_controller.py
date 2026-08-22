@@ -132,13 +132,18 @@ def run_training(environment):
             Path(training_config["save_directory"])
             / training_config["checkpoint_name"]
         )
-        if not checkpoint.exists():
-            raise FileNotFoundError(
-                f"Training resume checkpoint does not exist: {checkpoint}"
+        if checkpoint.exists():
+            loaded = agent.load_checkpoint(checkpoint)
+            start_episode = int(loaded.get("episode", 0))
+            print(
+                f"Resumed training from episode {start_episode}: {checkpoint}"
             )
-        loaded = agent.load_checkpoint(checkpoint)
-        start_episode = int(loaded.get("episode", 0))
-        print(f"Resumed training from episode {start_episode}: {checkpoint}")
+        else:
+            print(
+                "Resume is enabled, but this run has no checkpoint yet. "
+                f"Starting a fresh policy; recovery begins after {checkpoint} "
+                "is first saved."
+            )
 
     trainer = DQNTrainer(environment, agent)
     if loaded is not None:

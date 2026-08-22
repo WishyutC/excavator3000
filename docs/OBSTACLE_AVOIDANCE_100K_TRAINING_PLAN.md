@@ -124,18 +124,20 @@ same evaluation protocol rather than changing values during this run.
 
 ## Checkpoint and recovery plan
 
-Training starts with `resume = False`, so existing race and baseline artifacts
-cannot be overwritten. The controller writes:
+Training uses outage-safe `resume = True` with a dedicated model directory. If
+that directory has no `dqn_latest.pt`, the controller starts a fresh policy. On
+later launches it restores the checkpoint automatically. Existing race and
+baseline artifacts cannot be overwritten. The controller writes:
 
 - `dqn_latest.pt` every 50 episodes and at clean shutdown;
 - `dqn_best.pt` when a successful episode exceeds the previous successful
   return;
 - `dqn_candidate.pt` for the strongest non-successful episode.
 
-If Webots or the computer stops, set `training.resume = True` and restart using
-the same model and log directories. The latest checkpoint restores network,
-optimizer, epsilon, and training counters. Never rename or clear the active CSV
-when resuming.
+If Webots or the computer stops, restart using the same model and log
+directories. The latest checkpoint restores network, optimizer, epsilon, and
+training counters. At most the episodes completed after the last 50-episode
+checkpoint can be lost. Never rename or clear the active CSV when resuming.
 
 ## Evidence captured for reports and presentations
 
@@ -174,7 +176,7 @@ program.mode = train
 environment.map_selector = survival_mix
 training.episodes = 100000
 training.curriculum.enabled = False
-training.resume = False
+training.resume = True
 observer.enabled_in_training = False
 ```
 

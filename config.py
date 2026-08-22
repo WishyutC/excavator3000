@@ -373,7 +373,9 @@ CONFIG = {
         "best_checkpoint_name": "dqn_best.pt",
         "candidate_checkpoint_name": "dqn_candidate.pt",
         "save_every_episodes": 50,
-        "resume": False,
+        # Outage-safe mode: start fresh when this run has no checkpoint yet,
+        # then automatically restore dqn_latest.pt on every later restart.
+        "resume": True,
         "curriculum": {
             # Survival training has no ordered race checkpoints. Map and spawn
             # randomization provide the obstacle-avoidance curriculum instead.

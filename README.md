@@ -321,7 +321,7 @@ program.mode = train
 environment.map_selector = survival_mix
 training.episodes = 100000
 training.curriculum.enabled = False
-training.resume = False
+training.resume = True
 observer.enabled_in_training = False
 ```
 
@@ -338,8 +338,14 @@ models/obstacle_avoidance_survival_mix_100k_v1/
 `-- dqn_candidate.pt
 ```
 
+or hyperparameters during the experiment; that would mix different experiments
+inside one CSV.
 Before starting, confirm no other Webots process owns the world. Then use the
-dashboard **Start** button or the direct headless command. Do not change rewards
+dashboard **Start** button or the direct headless command. Resume mode is
+outage-safe: it starts fresh when the dedicated directory has no checkpoint and
+automatically restores `dqn_latest.pt` after checkpoints begin. Do not change
+rewards or hyperparameters during the experiment; that would mix different
+experiments inside one CSV.
 or hyperparameters during the experiment; that would mix different experiments
 inside one CSV.
 
