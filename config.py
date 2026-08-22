@@ -6,7 +6,7 @@ import os
 CONFIG = {
     "program": {
         # Modes: "test", "diagnostic", "train", or "evaluate".
-        "mode": "evaluate",
+        "mode": "train",
         "terminal_output": False,
         "test_action": 2
     },
@@ -311,14 +311,20 @@ CONFIG = {
     "logging": {
         "enabled": True,
         "format": "csv",
-        "directory": "runs/survival_mix_v4_baseline_eval_300"
+        "run_name": "obstacle_avoidance_survival_mix_100k_v1",
+        "description": (
+            "Fresh 100,000-episode Double DQN obstacle-avoidance training "
+            "run across the three randomized survival maps."
+        ),
+        "baseline_reference": "survival_mix_v4_baseline_eval_300",
+        "directory": "runs/obstacle_avoidance_survival_mix_100k_v1"
     },
 
     "training": {
         "algorithm": "dqn",
         "device": "auto",
         "seed": 42,
-        "episodes": 20_000,
+        "episodes": 100_000,
         # At action_repeat=4 the full route spans far more than 100 decisions;
         # gamma=0.999 keeps later checkpoints relevant to earlier actions.
         "gamma": 0.999,
@@ -360,16 +366,18 @@ CONFIG = {
         "train_every_steps": 4,
         "gradient_clip_norm": 10.0,
         "target_update_steps": 1000,
-        # Reserved for the later obstacle transfer-training run. Evaluation
-        # loads the race checkpoint below and never writes model weights.
-        "save_directory": "models/obstacle_transfer_v4_2000",
+        # Dedicated output path keeps this production-policy experiment
+        # separate from the validated race model and all baseline evaluations.
+        "save_directory": "models/obstacle_avoidance_survival_mix_100k_v1",
         "checkpoint_name": "dqn_latest.pt",
         "best_checkpoint_name": "dqn_best.pt",
         "candidate_checkpoint_name": "dqn_candidate.pt",
         "save_every_episodes": 50,
         "resume": False,
         "curriculum": {
-            "enabled": True,
+            # Survival training has no ordered race checkpoints. Map and spawn
+            # randomization provide the obstacle-avoidance curriculum instead.
+            "enabled": False,
             "start_stage_index": 6,
             "initial_policy_checkpoint": (
                 "models/curriculum_v4_macro/stage_05_cp6/dqn_latest.pt"
