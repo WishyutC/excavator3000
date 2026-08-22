@@ -135,9 +135,11 @@ baseline artifacts cannot be overwritten. The controller writes:
 - `dqn_candidate.pt` for the strongest non-successful episode.
 
 If Webots or the computer stops, restart using the same model and log
-directories. The latest checkpoint restores network, optimizer, epsilon, and
-training counters. At most the episodes completed after the last 50-episode
-checkpoint can be lost. Never rename or clear the active CSV when resuming.
+directories. The latest checkpoint restores networks, optimizer, replay memory,
+epsilon, and training counters. CSV rows newer than the restored checkpoint are
+removed automatically and the rollback is recorded in `resume_events.jsonl`.
+At most the episodes completed after the last 50-episode checkpoint can be
+lost. Never rename or clear the active CSV when resuming.
 
 ## Evidence captured for reports and presentations
 

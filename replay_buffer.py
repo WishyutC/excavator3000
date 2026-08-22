@@ -135,6 +135,40 @@ class UniformReplayBuffer:
     def clear(self):
         self._transitions.clear()
 
+    def state_dict(self):
+        """Return primitive checkpoint data for exact training recovery."""
+        return {
+            "capacity": self.capacity,
+            "batch_size": self.batch_size,
+            "learning_starts": self.learning_starts,
+            "random_state": self._random.getstate(),
+            "transitions": [
+                (
+                    item.state,
+                    item.action,
+                    item.reward,
+                    item.next_state,
+                    item.done,
+                    item.termination_reason
+                )
+                for item in self._transitions
+            ]
+        }
+
+    def load_state_dict(self, state):
+        """Restore replay data only when its configuration still matches."""
+        for name in ("capacity", "batch_size", "learning_starts"):
+            if int(state[name]) != getattr(self, name):
+                raise ValueError(
+                    f"Replay checkpoint {name} does not match configuration."
+                )
+
+        self._transitions.clear()
+        for values in state.get("transitions", ()):
+            self._transitions.append(Transition(*values))
+        if "random_state" in state:
+            self._random.setstate(state["random_state"])
+
 
 def create_replay_buffer(training_config=None):
     """Build the configured training replay buffer."""

@@ -115,6 +115,7 @@ def run_turn_diagnostic(environment):
 
 def run_training(environment):
     from dqn_trainer import DQNTrainer
+    from training_logger import TrainingLogger
 
     training_config = CONFIG["training"]
     if training_config.get("curriculum", {}).get("enabled", False):
@@ -145,7 +146,16 @@ def run_training(environment):
                 "is first saved."
             )
 
-    trainer = DQNTrainer(environment, agent)
+    logger = TrainingLogger()
+    if loaded is not None:
+        removed_rows = logger.reconcile_to_checkpoint(start_episode)
+        if removed_rows:
+            print(
+                f"Removed {removed_rows} log rows newer than checkpoint "
+                f"episode {start_episode}."
+            )
+
+    trainer = DQNTrainer(environment, agent, logger=logger)
     if loaded is not None:
         extra = loaded.get("extra", {})
         trainer.best_success_reward = float(

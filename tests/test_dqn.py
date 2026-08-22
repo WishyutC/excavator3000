@@ -134,6 +134,9 @@ class DQNTests(unittest.TestCase):
     def test_checkpoint_round_trip_restores_counters_and_weights(self):
         config = small_training_config()
         agent = DQNAgent(10, 7, config)
+        agent.remember(
+            [0.0] * 10, 2, 1.0, [0.1] * 10, False, "running"
+        )
         agent.environment_steps = 123
         agent.training_steps = 45
 
@@ -147,6 +150,7 @@ class DQNTests(unittest.TestCase):
         self.assertEqual(metadata["episode"], 9)
         self.assertEqual(restored.environment_steps, 123)
         self.assertEqual(restored.training_steps, 45)
+        self.assertEqual(len(restored.replay_buffer), 1)
         self.assertTrue(all(
             torch.equal(original, loaded)
             for original, loaded in zip(

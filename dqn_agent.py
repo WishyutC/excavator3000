@@ -223,6 +223,7 @@ class DQNAgent:
             "optimizer": self.optimizer.state_dict(),
             "environment_steps": self.environment_steps,
             "training_steps": self.training_steps,
+            "replay_buffer": self.replay_buffer.state_dict(),
             "double_dqn": bool(self.config.get("double_dqn", False)),
             "reward_scale": float(self.config.get("reward_scale", 1.0)),
             "episode": int(episode),
@@ -248,6 +249,8 @@ class DQNAgent:
         self.target_network.load_state_dict(checkpoint["target_network"])
         if load_optimizer and "optimizer" in checkpoint:
             self.optimizer.load_state_dict(checkpoint["optimizer"])
+        if load_optimizer and "replay_buffer" in checkpoint:
+            self.replay_buffer.load_state_dict(checkpoint["replay_buffer"])
         self.environment_steps = int(checkpoint.get("environment_steps", 0))
         self.training_steps = int(checkpoint.get("training_steps", 0))
         return checkpoint

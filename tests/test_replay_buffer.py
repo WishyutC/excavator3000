@@ -88,6 +88,27 @@ class UniformReplayBufferTests(unittest.TestCase):
         self.assertEqual(buffer.batch_size, 64)
         self.assertEqual(buffer.learning_starts, 2_000)
 
+    def test_checkpoint_state_restores_transitions_and_sampling_state(self):
+        original = self.create_buffer(batch_size=2, learning_starts=2)
+        for action in range(4):
+            add_transition(original, action)
+        state = original.state_dict()
+        expected = original.sample()
+
+        restored = self.create_buffer(batch_size=2, learning_starts=2)
+        restored.load_state_dict(state)
+
+        self.assertEqual(len(restored), 4)
+        self.assertEqual(restored.sample(), expected)
+
+    def test_checkpoint_rejects_changed_replay_configuration(self):
+        original = self.create_buffer()
+        state = original.state_dict()
+        changed = self.create_buffer(capacity=6)
+
+        with self.assertRaisesRegex(ValueError, "capacity"):
+            changed.load_state_dict(state)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -369,9 +369,11 @@ continue after Webots or the computer stops:
    episodes.
 5. Restart Webots.
 
-The checkpoint restores online/target networks, optimizer state, epsilon and
-training counters. The existing CSV continues receiving rows. Never rename or
-clear the active checkpoint or CSV before resuming.
+The checkpoint restores online/target networks, optimizer state, replay memory,
+epsilon and training counters. Before appending new data, the logger removes any
+CSV rows newer than the restored checkpoint and records that rollback in
+`resume_events.jsonl`. Never rename or clear the active checkpoint or CSV before
+resuming.
 
 To intentionally begin a different experiment, set `resume = False` and choose
 new model and log directory names.
