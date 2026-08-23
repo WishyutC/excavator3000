@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>Excavator3000 Training Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">EXCAVATOR3000 / DQN LAB</p>
+      <h1>Training dashboard</h1>
+    </div>
+    <div class="topbar-actions">
+      <span id="connection-state" class="connection">Connecting…</span>
+      <form method="post" action="/logout"><button class="quiet" type="submit">Log out</button></form>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="main-column">
+      <section class="control-strip" aria-label="Training controls">
+        <div class="process-state">
+          <span id="process-dot" class="status-dot stopped" aria-hidden="true"></span>
+          <div><strong id="process-label">Stopped</strong><span id="process-detail">No managed process</span></div>
+        </div>
+        <div class="control-buttons">
+          <button id="start-button" class="primary" type="button">Start training</button>
+          <button id="pause-button" type="button">Pause</button>
+          <button id="resume-button" type="button">Resume</button>
+          <button id="stop-button" class="danger" type="button">Stop</button>
+        </div>
+      </section>
+
+      <div id="notice" class="notice" role="status" hidden></div>
+
+      <section class="metrics" aria-label="Latest training metrics">
+        <article class="metric"><span>Episode</span><strong id="metric-episode">—</strong><small id="metric-updated">Waiting for CSV</small></article>
+        <article class="metric"><span>Reward</span><strong id="metric-reward">—</strong><small id="metric-trend">Latest episode</small></article>
+        <article class="metric"><span>20-episode average</span><strong id="metric-average">—</strong><small>Higher is better</small></article>
+        <article class="metric"><span>Success / last 100</span><strong id="metric-success">—</strong><small id="metric-termination">No results</small></article>
+        <article class="metric"><span>Loss</span><strong id="metric-loss">—</strong><small id="metric-buffer">Replay buffer —</small></article>
+      </section>
+
+      <section class="chart-panel">
+        <div class="section-heading">
+          <div><h2>Reward trend</h2><p>Episode reward and rolling 20-episode average</p></div>
+          <div class="legend"><span><i class="swatch reward"></i>Reward</span><span><i class="swatch average"></i>Rolling average</span></div>
+        </div>
+        <canvas id="reward-chart" height="280" role="img" aria-label="Reward trend chart"></canvas>
+      </section>
+
+      <div class="chart-grid">
+        <section class="chart-panel">
+          <div class="section-heading"><div><h2>Termination mix</h2><p>Last 100 completed episodes</p></div></div>
+          <div class="termination-bar" aria-label="Last 100 termination percentages">
+            <span id="bar-goal" class="bar-goal"></span><span id="bar-timeout" class="bar-timeout"></span><span id="bar-collision" class="bar-collision"></span><span id="bar-stuck" class="bar-stuck"></span><span id="bar-other" class="bar-other"></span>
+          </div>
+          <div class="termination-labels">
+            <span>Goal <strong id="goal-rate">0%</strong></span>
+            <span>Timeout <strong id="timeout-rate">0%</strong></span>
+            <span>Collision <strong id="collision-rate">0%</strong></span>
+            <span>Stuck <strong id="stuck-rate">0%</strong></span>
+          </div>
+          <p class="subchart-label">Latest action mix</p>
+          <div class="termination-bar" aria-label="Latest episode action percentages">
+            <span id="bar-forward" class="bar-forward"></span><span id="bar-left" class="bar-left"></span><span id="bar-right" class="bar-right"></span>
+          </div>
+          <div class="termination-labels">
+            <span>Forward <strong id="forward-rate">0%</strong></span>
+            <span>Left <strong id="left-rate">0%</strong></span>
+            <span>Right <strong id="right-rate">0%</strong></span>
+          </div>
+        </section>
+        <section class="chart-panel">
+          <div class="section-heading"><div><h2>Learning loss</h2><p>Log scale reveals both spikes and recovery</p></div></div>
+          <canvas id="loss-chart" height="180" role="img" aria-label="DQN learning loss chart"></canvas>
+        </section>
+      </div>
+
+      <section class="table-panel">
+        <div class="section-heading"><div><h2>Recent episodes</h2><p>Newest result first</p></div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Episode</th><th>Map</th><th>Stage</th><th>Reward</th><th>Steps</th><th>Progress</th><th>Result</th><th>Epsilon</th><th>Loss</th></tr></thead>
+            <tbody id="episode-table"><tr><td colspan="9">Waiting for training data…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <aside class="config-panel">
+      <div class="config-heading">
+        <div><p class="eyebrow">NEXT RUN</p><h2>Configuration</h2></div>
+        <button id="reload-config" class="quiet" type="button">Reload</button>
+      </div>
+      <p class="config-note">Saved values take effect when Webots starts again. They do not alter the active process.</p>
+      <form id="config-form">
+        <div id="config-fields"><p class="muted">Loading configuration…</p></div>
+        <button class="primary save-config" type="submit">Save configuration</button>
+      </form>
+    </aside>
+  </main>
+
+  <script src="{{ url_for('static', filename='dashboard.js') }}" defer></script>
+</body>
+</html>

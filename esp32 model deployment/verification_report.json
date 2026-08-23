@@ -1,0 +1,52 @@
+{
+  "model": "Excavator3000 curriculum-v4 race policy",
+  "format": "TensorFlow Lite FlatBuffer",
+  "precision": "float32",
+  "source_checkpoint": "dqn_latest.pt",
+  "source_checkpoint_sha256": "c4984f7ff563bcf23dfcbfa79ef741446eb71d78ba4dda029bc251b89258d518",
+  "source_checkpoint_bytes": 92021,
+  "tflite_file": "excavator3000_race_v4_float32.tflite",
+  "tflite_sha256": "d9b525c7a7b9eb39fb1be120fe1ff1c006507a74c6a8df0be166eb1c9ba692da",
+  "tflite_bytes": 21280,
+  "checkpoint_episode": 511,
+  "environment_steps": 211800,
+  "training_steps": 52451,
+  "architecture": {
+    "state_size": 10,
+    "action_size": 3,
+    "hidden_sizes": [
+      64,
+      64
+    ]
+  },
+  "parameter_count": 5059,
+  "input": {
+    "name": "observation",
+    "shape": [
+      1,
+      10
+    ],
+    "dtype": "float32"
+  },
+  "output": {
+    "name": "q_values",
+    "shape": [
+      1,
+      3
+    ],
+    "dtype": "float32",
+    "order": [
+      "forward",
+      "turn_left",
+      "turn_right"
+    ]
+  },
+  "verification": {
+    "cases": 256,
+    "max_abs_error": 9.15527344e-05,
+    "mean_abs_error": 8.74713684e-06,
+    "action_agreement": 1.0,
+    "method": "Parsed TFLite FlatBuffer weights and operators were executed against deterministic PyTorch reference vectors.",
+    "desktop_litert_runtime_executed": false
+  }
+}

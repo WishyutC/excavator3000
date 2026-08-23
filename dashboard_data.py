@@ -1,0 +1,168 @@
+"""Read and summarize the live training CSV without interrupting its writer."""
+
+from collections import Counter
+import csv
+from datetime import datetime, timezone
+from pathlib import Path
+import threading
+
+
+class TrainingDataReader:
+    def __init__(self, csv_path):
+        self.path = Path(csv_path)
+        self._lock = threading.Lock()
+        self._mtime_ns = None
+        self._rows = []
+
+    @staticmethod
+    def _number(row, key, conversion, default=0):
+        try:
+            return conversion(row.get(key, default))
+        except (TypeError, ValueError):
+            return default
+
+    def rows(self):
+        if not self.path.exists():
+            return []
+        mtime_ns = self.path.stat().st_mtime_ns
+        with self._lock:
+            if mtime_ns == self._mtime_ns:
+                return list(self._rows)
+            parsed = []
+            try:
+                with self.path.open("r", encoding="utf-8", newline="") as handle:
+                    for row in csv.DictReader(handle):
+                        if not row.get("episode"):
+                            continue
+                        parsed.append({
+                            "episode": self._number(row, "episode", int),
+                            "stage_episode": self._number(
+                                row, "stage_episode", int
+                            ),
+                            "curriculum_stage": row.get(
+                                "curriculum_stage", "single"
+                            ),
+                            "map_name": row.get("map_name", "unknown"),
+                            "curriculum_target_checkpoint": self._number(
+                                row,
+                                "curriculum_target_checkpoint",
+                                int,
+                                None
+                            ),
+                            "steps": self._number(row, "steps", int),
+                            "decisions": self._number(row, "decisions", int),
+                            "reward": self._number(row, "total_reward", float),
+                            "mean_reward_per_step": self._number(
+                                row, "mean_reward_per_step", float
+                            ),
+                            "reason": row.get("termination_reason", "unknown"),
+                            "success": row.get("success", "").lower() == "true",
+                            "epsilon": self._number(row, "epsilon", float),
+                            "buffer_size": self._number(row, "buffer_size", int),
+                            "training_steps": self._number(row, "training_steps", int),
+                            "loss": self._number(row, "loss", float, None),
+                            "min_goal_distance_m": self._number(
+                                row, "min_goal_distance_m", float, None
+                            ),
+                            "final_goal_distance_m": self._number(
+                                row, "final_goal_distance_m", float, None
+                            ),
+                            "track_progress": self._number(
+                                row, "track_progress", float
+                            ),
+                            "checkpoints_reached": self._number(
+                                row, "checkpoints_reached", int
+                            ),
+                            "checkpoint_count": self._number(
+                                row, "checkpoint_count", int
+                            ),
+                            "action_forward_pct": self._number(
+                                row, "action_forward_pct", float
+                            ),
+                            "action_left_pct": self._number(
+                                row, "action_left_pct", float
+                            ),
+                            "action_right_pct": self._number(
+                                row, "action_right_pct", float
+                            )
+                        })
+            except (OSError, csv.Error):
+                return list(self._rows)
+            self._rows = parsed
+            self._mtime_ns = mtime_ns
+            return list(self._rows)
+
+    @staticmethod
+    def _window_summary(rows):
+        if not rows:
+            return {
+                "count": 0, "average_reward": None, "best_reward": None,
+                "success_rate": 0.0, "collision_rate": 0.0,
+                "timeout_rate": 0.0, "stuck_rate": 0.0, "reasons": {}
+            }
+        reasons = Counter(row["reason"] for row in rows)
+        rewards = [row["reward"] for row in rows]
+        count = len(rows)
+        return {
+            "count": count,
+            "average_reward": sum(rewards) / count,
+            "best_reward": max(rewards),
+            "success_rate": 100.0 * sum(row["success"] for row in rows) / count,
+            "collision_rate": 100.0 * reasons["collision"] / count,
+            "timeout_rate": 100.0 * reasons["timeout"] / count,
+            "stuck_rate": 100.0 * reasons["stuck"] / count,
+            "reasons": dict(reasons)
+        }
+
+    @staticmethod
+    def _downsample(rows, maximum=600):
+        if len(rows) <= maximum:
+            return rows
+        stride = max(1, len(rows) // maximum)
+        sampled = rows[::stride]
+        if sampled[-1] is not rows[-1]:
+            sampled.append(rows[-1])
+        return sampled[-maximum:]
+
+    def snapshot(self):
+        rows = self.rows()
+        history_source = rows[-2_000:]
+        rolling_rewards = []
+        running = []
+        history = []
+        for row in history_source:
+            running.append(row["reward"])
+            if len(running) > 20:
+                running.pop(0)
+            item = dict(row)
+            item["rolling_reward_20"] = sum(running) / len(running)
+            history.append(item)
+
+        modified = None
+        stale_seconds = None
+        if self.path.exists():
+            timestamp = self.path.stat().st_mtime
+            modified = datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
+            stale_seconds = max(0.0, datetime.now(timezone.utc).timestamp() - timestamp)
+
+        latest = rows[-1] if rows else None
+        recent_20 = self._window_summary(rows[-20:])
+        previous_20 = self._window_summary(rows[-40:-20])
+        trend = None
+        if recent_20["average_reward"] is not None and previous_20["average_reward"] is not None:
+            trend = recent_20["average_reward"] - previous_20["average_reward"]
+
+        return {
+            "has_data": bool(rows),
+            "latest": latest,
+            "windows": {
+                "20": recent_20,
+                "100": self._window_summary(rows[-100:])
+            },
+            "reward_trend_20": trend,
+            "history": self._downsample(history),
+            "recent_rows": list(reversed(rows[-12:])),
+            "csv_updated_at": modified,
+            "csv_stale_seconds": stale_seconds,
+            "total_rows": len(rows)
+        }

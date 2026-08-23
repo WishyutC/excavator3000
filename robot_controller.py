@@ -1,10 +1,18 @@
 from controller import Supervisor
+from config import CONFIG
+import json
 import random
 import math
+from pathlib import Path
+import socket
+import subprocess
+import sys
+from observation import build_observation
+from map_manager import MapManager
 
-TIME_STEP = 32
-MAX_SPEED = 12.56
-COLLISION_THRESHOLD = 3900
+TIME_STEP = CONFIG["simulation"]["time_step_ms"]
+COLLISION_THRESHOLD = CONFIG["environment"]["collision_threshold"]
+OBSERVER_CONFIG = CONFIG["observer"]
 
 
 class RobotController:
@@ -25,9 +33,9 @@ class RobotController:
                 "Could not access robot translation or rotation fields."
             )
 
-        # Save original height
+        # Webots' default ENU coordinates use Z as the vertical axis.
         self.start_position = self.translation.getSFVec3f()
-        self.robot_height = self.start_position[1]
+        self.robot_height = self.start_position[2]
 
         # Motors
         self.left_motor = self.robot.getDevice("left wheel motor")
@@ -69,28 +77,133 @@ class RobotController:
 
             self.sensors.append(sensor)
 
-        # Discrete actions
+        device_max_speed = min(
+            self.left_motor.getMaxVelocity(),
+            self.right_motor.getMaxVelocity()
+        )
+        configured_max_speed = CONFIG["simulation"]["max_motor_speed"]
+        speed_scale = CONFIG["robot"]["drive"]["speed_scale"]
+
+        if not 0.0 < speed_scale <= 1.0:
+            raise ValueError("robot.drive.speed_scale must be between 0 and 1.")
+
+        self.motor_max_speed = min(device_max_speed, configured_max_speed)
+        self.drive_speed = self.motor_max_speed * speed_scale
+
+        action_ratios = CONFIG["robot"]["drive"]["action_ratios"]
+
+        def wheel_speeds(action_name):
+            left_ratio, right_ratio = action_ratios[action_name]
+            return (
+                left_ratio * self.drive_speed,
+                right_ratio * self.drive_speed
+            )
+
+        self.map_manager = MapManager(self.robot)
+        self.map_manager.activate()
+
+        # Discrete actions expressed as ratios of the safe drive speed.
         self.action_table = {
-            0: (4.5, 4.5),       # Forward
-            1: (2.0, 5.0),       # Turn left
-            2: (5.0, 2.0),       # Turn right
-            3: (-4.0, -4.0),     # Reverse
-            4: (0.0, 0.0),       # Stop
-            5: (-2.0, -4.0),     # Reverse left
-            6: (-4.0, -2.0)      # Reverse right
+            0: wheel_speeds("forward"),
+            1: wheel_speeds("turn_left"),
+            2: wheel_speeds("turn_right"),
+            3: wheel_speeds("reverse"),
+            4: wheel_speeds("stop"),
+            5: wheel_speeds("reverse_left"),
+            6: wheel_speeds("reverse_right")
         }
 
-        print("Robot Controller Ready")
+        self.action_names = {
+            0: "FORWARD",
+            1: "TURN LEFT",
+            2: "TURN RIGHT",
+            3: "REVERSE",
+            4: "STOP",
+            5: "REVERSE LEFT",
+            6: "REVERSE RIGHT"
+        }
+
+        self.hud_socket = None
+        self.hud_process = None
+        self.hud_update_count = 0
+        program_mode = CONFIG["program"]["mode"]
+        self.observer_enabled = (
+            OBSERVER_CONFIG["enabled"]
+            and (
+                program_mode == "test"
+                or (
+                    program_mode == "train"
+                    and OBSERVER_CONFIG["enabled_in_training"]
+                )
+                or (
+                    program_mode == "evaluate"
+                    and OBSERVER_CONFIG["enabled_in_evaluation"]
+                )
+            )
+        )
+
+        if self.observer_enabled:
+            self.hud_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+            if OBSERVER_CONFIG["auto_launch"]:
+                self._start_hud()
+
+        estimated_speed = (
+            self.drive_speed * CONFIG["robot"]["wheel_radius_m"]
+        )
+        print(
+            "Robot Controller Ready | "
+            f"drive {self.drive_speed:.2f} rad/s | "
+            f"estimated {estimated_speed:.3f} m/s"
+        )
 
     def step(self):
         return self.robot.step(TIME_STEP)
 
-    def get_state(self):
+    def get_raw_sensor_values(self):
 
         return [
             sensor.getValue()
             for sensor in self.sensors
         ]
+
+    def get_observation(self, raw_sensor_values=None):
+
+        if raw_sensor_values is None:
+            raw_sensor_values = self.get_raw_sensor_values()
+
+        sensor_distances = [
+            self.sensor_distance(index, value)
+            for index, value in enumerate(raw_sensor_values)
+        ]
+
+        return build_observation(
+            sensor_distances,
+            self.node.getVelocity(),
+            self.node.getOrientation(),
+            CONFIG["observation"]
+        )
+
+    def get_state(self):
+        """Return the normalized state consumed by the learning agent."""
+
+        return self.get_observation()
+
+    def get_position(self):
+        """Return the current Webots world position of the robot center."""
+
+        return tuple(self.node.getPosition())
+
+    def get_turn_rate(self):
+        """Return the angular velocity around Webots' vertical Z axis."""
+
+        return float(self.node.getVelocity()[5])
+
+    def get_forward_direction(self):
+        """Return the robot's local +X direction in world XY coordinates."""
+
+        orientation = self.node.getOrientation()
+        return float(orientation[0]), float(orientation[3])
 
     def apply_action(self, action):
 
@@ -102,11 +215,160 @@ class RobotController:
 
         left, right = self.action_table[action]
 
-        left = max(-MAX_SPEED, min(MAX_SPEED, left))
-        right = max(-MAX_SPEED, min(MAX_SPEED, right))
+        left = max(-self.motor_max_speed, min(self.motor_max_speed, left))
+        right = max(-self.motor_max_speed, min(self.motor_max_speed, right))
 
         self.left_motor.setVelocity(left)
         self.right_motor.setVelocity(right)
+
+    def apply_drive_ratios(self, left_ratio, right_ratio):
+        """Apply deployable low-level wheel ratios during a macro maneuver."""
+
+        left = max(-1.0, min(1.0, float(left_ratio))) * self.drive_speed
+        right = max(-1.0, min(1.0, float(right_ratio))) * self.drive_speed
+        self.left_motor.setVelocity(left)
+        self.right_motor.setVelocity(right)
+
+    def get_action_name(self, action):
+
+        return self.action_names.get(action, "UNKNOWN")
+
+    @staticmethod
+    def _lookup_rows(sensor):
+
+        try:
+            table = sensor.getLookupTable()
+        except (AttributeError, TypeError):
+            return []
+
+        if not table:
+            return []
+
+        if isinstance(table[0], (list, tuple)):
+            return [tuple(row[:3]) for row in table if len(row) >= 3]
+
+        return [
+            tuple(table[index:index + 3])
+            for index in range(0, len(table) - 2, 3)
+        ]
+
+    def sensor_distance(self, sensor_index, value):
+
+        # Webots lookup rows are: distance (m), output value, noise.
+        rows = self._lookup_rows(self.sensors[sensor_index])
+
+        if not rows:
+            return None
+
+        points = sorted(
+            ((float(row[1]), float(row[0])) for row in rows),
+            key=lambda point: point[0]
+        )
+
+        if value <= points[0][0]:
+            return points[0][1]
+
+        if value >= points[-1][0]:
+            return points[-1][1]
+
+        for (value_a, distance_a), (value_b, distance_b) in zip(
+            points,
+            points[1:]
+        ):
+            if value_a <= value <= value_b:
+                if value_b == value_a:
+                    return min(distance_a, distance_b)
+
+                ratio = (value - value_a) / (value_b - value_a)
+                return distance_a + ratio * (distance_b - distance_a)
+
+        return None
+
+    def _start_hud(self):
+
+        hud_path = Path(__file__).with_name("hud_gui.py")
+
+        try:
+            self.hud_process = subprocess.Popen([
+                sys.executable,
+                str(hud_path),
+                "--host",
+                OBSERVER_CONFIG["host"],
+                "--port",
+                str(OBSERVER_CONFIG["port"])
+            ])
+        except OSError as error:
+            print(f"Could not start HUD window: {error}")
+
+    def update_hud(
+        self,
+        episode,
+        step,
+        action,
+        reward,
+        total_reward,
+        raw_sensor_values,
+        observation,
+        info
+    ):
+
+        if not self.observer_enabled or self.hud_socket is None:
+            return
+
+        self.hud_update_count += 1
+        update_interval = max(1, OBSERVER_CONFIG["update_every_steps"])
+
+        if self.hud_update_count % update_interval != 0:
+            return
+
+        left_speed, right_speed = self.action_table[action]
+        node_velocity = self.node.getVelocity()
+        linear_speed = math.hypot(node_velocity[0], node_velocity[1])
+        angular_speed = node_velocity[5]
+        wheel_radius = CONFIG["robot"]["wheel_radius_m"]
+
+        packet = {
+            "type": "telemetry",
+            "map": self.map_manager.map_name,
+            "episode": episode,
+            "step": step,
+            "action": action,
+            "action_name": self.get_action_name(action),
+            "left_speed": left_speed,
+            "right_speed": right_speed,
+            "linear_speed_m_s": linear_speed,
+            "angular_speed_rad_s": angular_speed,
+            "max_linear_speed_m_s": self.motor_max_speed * wheel_radius,
+            "target_linear_speed_m_s": (
+                (left_speed + right_speed) * 0.5 * wheel_radius
+            ),
+            "reward": reward,
+            "total_reward": total_reward,
+            "observation": observation,
+            "normalized_forward_speed": observation[-2],
+            "normalized_turn_rate": observation[-1],
+            "termination_reason": info["termination_reason"],
+            "is_success": info["is_success"],
+            "goal_distance_m": info["goal_distance_m"],
+            "reward_breakdown": info.get("reward_breakdown", {}),
+            "training": info.get("training", {}),
+            "sensors": [
+                {
+                    "raw": value,
+                    "distance_m": self.sensor_distance(index, value)
+                }
+                for index, value in enumerate(raw_sensor_values)
+            ]
+        }
+
+        try:
+            message = json.dumps(packet).encode("utf-8")
+            self.hud_socket.sendto(
+                message,
+                (OBSERVER_CONFIG["host"], OBSERVER_CONFIG["port"])
+            )
+        except OSError as error:
+            print(f"HUD telemetry error: {error}")
 
     def stop(self):
 
@@ -115,32 +377,35 @@ class RobotController:
 
     def collision(self):
 
-        return max(self.get_state()) > COLLISION_THRESHOLD
+        return max(self.get_raw_sensor_values()) > COLLISION_THRESHOLD
 
     def reset(self):
 
         self.stop()
+        self.map_manager.prepare_episode()
 
-        # Random starting position
-        x = random.uniform(-0.4, 0.4)
-        z = random.uniform(-0.4, 0.4)
+        if CONFIG["environment"]["random_start"]:
+            x, y, angle = self.map_manager.random_spawn_pose()
+        else:
+            x = self.start_position[0]
+            y = self.start_position[1]
+            angle = (
+                random.uniform(-math.pi, math.pi)
+                if CONFIG["environment"]["random_heading"]
+                else 0.0
+            )
 
         self.translation.setSFVec3f([
             x,
-            self.robot_height,
-            z
+            y,
+            self.robot_height
         ])
 
-        # Random heading
-        angle = random.uniform(
-            -math.pi,
-            math.pi
-        )
-
+        # Heading rotates around the vertical Z axis in the ENU world.
         self.rotation.setSFRotation([
             0,
-            1,
             0,
+            1,
             angle
         ])
 
@@ -156,3 +421,25 @@ class RobotController:
     def close(self):
 
         self.stop()
+
+        if self.hud_socket is not None:
+            if OBSERVER_CONFIG["close_with_controller"]:
+                try:
+                    message = json.dumps({"type": "shutdown"}).encode("utf-8")
+                    self.hud_socket.sendto(
+                        message,
+                        (OBSERVER_CONFIG["host"], OBSERVER_CONFIG["port"])
+                    )
+                except OSError:
+                    pass
+
+            self.hud_socket.close()
+
+        if (
+            self.hud_process is not None
+            and OBSERVER_CONFIG["close_with_controller"]
+        ):
+            try:
+                self.hud_process.wait(timeout=1.0)
+            except subprocess.TimeoutExpired:
+                self.hud_process.terminate()
