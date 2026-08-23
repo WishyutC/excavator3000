@@ -495,6 +495,7 @@ limiting factors.
 |---|---|
 | [`PROJECT_FEATURES.md`](docs/PROJECT_FEATURES.md) | Current architecture, features, and roadmap |
 | [`MODEL_ARCHITECTURE.md`](docs/MODEL_ARCHITECTURE.md) | Exact input preprocessing, network layers, Q-value outputs, and ESP32 contract |
+| [`ESP32 deployment package`](esp32%20model%20deployment/README.md) | Shareable race-model copy, TFLite export, verification report, and conversion tools |
 | [`OBSTACLE_AVOIDANCE_100K_TRAINING_PLAN.md`](docs/OBSTACLE_AVOIDANCE_100K_TRAINING_PLAN.md) | Frozen 100k experiment design and presentation evidence |
 | [`SURVIVAL_MAPS.md`](docs/SURVIVAL_MAPS.md) | Map generation, spawn rules, and survival semantics |
 | [`MACRO_CURRICULUM_V4_REPORT.md`](docs/MACRO_CURRICULUM_V4_REPORT.md) | Validated race curriculum-v4 results |
