@@ -169,6 +169,66 @@ The final report should show:
 7. final round-robin evaluation against the 41.67% baseline;
 8. held-out `chessboard` performance to measure generalization.
 
+## Live training progress
+
+Snapshot taken on 2026-08-25 at approximately 21:31 ICT. The trainer and
+headless Webots process were responsive, and `training.csv` had been updated
+within the previous few seconds.
+
+| Progress item | Snapshot value |
+|---|---:|
+| Completed episodes | 23,067 / 100,000 (23.07%) |
+| Elapsed wall time | 73.36 hours |
+| Average throughput | 314.5 episodes/hour |
+| Overall survival rate | 62.82% |
+| Last 100 episodes | 71.0% |
+| Last 500 episodes | 79.0% |
+| Last 1,000 episodes | 80.1% |
+| Last 2,000 episodes | 80.6% |
+| Last 5,000 episodes | 76.68% |
+| Best rolling 100 | 98.0% (episodes 11,445-11,544) |
+| Best rolling 500 | 86.4% (episodes 21,768-22,267) |
+| Best rolling 1,000 | 84.4% (episodes 21,318-22,317) |
+| Latest epsilon | 0.05 |
+| Replay-buffer occupancy | 50,000 / 50,000 transitions |
+| Latest checkpoint | Episode 23,050 |
+
+The latest 1,000 episodes produced an 80.1% survival rate, compared with
+81.1% in the preceding 1,000. This one-point change is normal short-window
+variation rather than evidence of a collapse. The last 5,000 episodes reached
+76.68%, up from 72.8% in the preceding 5,000. Recent average episode length is
+8,974 physics steps, which is also consistent with stronger survival.
+
+Recent per-map results use the latest 3,000 episodes so that each randomized
+map has approximately 1,000 observations:
+
+| Map | Episodes | Survival rate | Collision rate | Average steps |
+|---|---:|---:|---:|---:|
+| `obstacle_field` | 996 | 87.25% | 12.75% | 9,350.5 |
+| `dense_pinch_points` | 1,007 | 74.88% | 25.12% | 8,723.9 |
+| `tight_corridors` | 997 | 66.90% | 33.10% | 8,157.7 |
+
+The hardest environment remains `tight_corridors`, but its recent 66.9%
+survival is materially above its 49.76% whole-run average. Recent performance
+on all three maps is also above the frozen race-model baseline, although a
+deterministic evaluation must still confirm the trained policy without epsilon
+exploration.
+
+The CSV contains a continuous episode sequence from 1 through 23,067 with no
+missing or duplicate episode numbers. One earlier outage recovery resumed from
+episode 200 and correctly discarded five CSV rows newer than that checkpoint,
+which verifies the recovery mechanism. At the measured average throughput, the
+remaining run is approximately 10.2 days, but this estimate will change with
+episode length and computer load.
+
+`dqn_latest.pt` is the correct recovery checkpoint and was only 17 episodes
+behind this snapshot. `dqn_best.pt` still points to episode 4,704 because the
+current best-checkpoint rule compares a single successful episode's return; it
+does not identify the policy with the best balanced multi-map survival rate.
+Do not change that rule during this controlled 100,000-episode run. Select the
+deployment model afterward using fixed round-robin evaluation of periodic or
+candidate checkpoints.
+
 ## Before pressing Start
 
 The saved configuration is prepared with:
